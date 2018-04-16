@@ -1,0 +1,19 @@
+This package was debianized by skidoo <email@redact.ed> on Tue, 10 Apr 2018 23:00:00 +0530.
+It was downloaded from <https://github.com/ralphys/unlockme/>
+Upstream Author:  Ralphy Rhdez <rafaelrhd3z@gmail.com>
+Copyright: © 2018 Ralphy Rhdez <rafaelrhd3z@gmail.com>
+
+License:
+
+  This library is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License as published by the Free Software Foundation; either
+  version 2.1 of the License, or (at your option) any later version.
+ 
+  This library is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+
+  On Debian systems, you can find the LGPL license in:
+  /usr/share/common-licenses/LGPL

@@ -1,0 +1,22 @@
+#!/usr/bin/make -f
+
+include /usr/share/cdbs/1/rules/debhelper.mk
+#include /usr/share/cdbs/1/class/autotools.mk
+
+install/woogaloo::
+	dh_install woogaloo.desktop /usr/share/applications/
+	#dh_install com.ubuntu.pkexec.woogaloo.policy /usr/share/polkit-1/actions/
+	dh_install woogaloo /usr/local/bin/
+	dh_install woogaloo-admin /usr/local/bin/
+	dh_install woogaloo.png /usr/share/pixmaps/
+	dh_install woogaloo-wm.png /usr/share/pixmaps/
+	dh_install usr_share_woogaloo/blacklist90.png /usr/share/woogaloo/
+	dh_install usr_share_woogaloo/blank.png /usr/share/woogaloo/
+	dh_install usr_share_woogaloo/cursor.png /usr/share/woogaloo/
+	dh_install usr_share_woogaloo/dlgicon.png /usr/share/woogaloo/
+	dh_install usr_share_woogaloo/icon.png /usr/share/woogaloo/
+	dh_install usr_share_woogaloo/no-preview.png /usr/share/woogaloo/
+	dh_install usr_share_woogaloo/software.png /usr/share/woogaloo/
+	dh_install usr_share_woogaloo/theme.png /usr/share/woogaloo/
+	dh_install usr_share_woogaloo/themes.png /usr/share/woogaloo/
+	dh_install usr_share_woogaloo/whitelist90.png /usr/share/woogaloo/

@@ -1,0 +1,13 @@
+Source: woogaloo
+Section: utils
+Priority: optional
+Maintainer: TBD <to@be.decided>
+Uploaders: skidoo <email@redact.ed>
+Build-Depends: debhelper (>= 7), pkg-config
+Standards-Version: 3.9.4
+
+Package: woogaloo
+Architecture: any
+Depends: yad
+Description: provides a GUI toward easing system administration and
+ assorted tweaking tasks.

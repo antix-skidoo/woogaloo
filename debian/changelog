@@ -1,0 +1,9 @@
+woogaloo (0.1.0)  unstable; urgency=low
+
+  * ☞ Initial release ( change name of application  woogaloo <-- UnlockMe )
+  * add debian packaging
+  * remove git installer, downloader, blocklist components
+  * remove "install curated list of apps" component
+  * just say №! to "wget | sudo sh"
+
+ -- skidoo <email@redact.ed>  Thu, 12 Apr 2018 20:00:00 -0400

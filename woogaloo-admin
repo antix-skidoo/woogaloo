@@ -1,0 +1,749 @@
+#!/bin/bash
+###  script name: woogaloo-admin
+###
+###  derived from "UnlockMe" by Ralphy Rhdez <rafaelrhd3z@gmail.com>
+###  License: GPLv2, or later
+
+if [[ ! -e /tmp/.woogaloods ]]; then
+  yad --info --button="OK" --width=480 --text-align="center" --text="do not call this woogaloo-admin script directly"
+  exit 1
+fi
+
+lockfile="/tmp/woogaloo-admin.lock"
+if [[ -e "$lockfile" ]]; then
+  echo ": ⁂   another instance is already running..."
+  yad --info --title="oops" --button="OK" --text="\n☞☞☞ another Woogaloo instance is already running" 2>/dev/null
+  exit 0
+fi
+touch "$lockfile"
+trap "rm -f ${lockfile}" EXIT  ### trap files on exit
+
+###  variables
+[[ -f /tmp/.woogaloousr ]] && SOFTUSR=$(< "/tmp/.woogaloousr")
+APPNAME="woogaloo"
+DLGICON="/usr/share/woogaloo/icons/ui/dlgicon.png"
+RUN_ICON="/usr/share/woogaloo/icons/ui/dlgicon.png"
+
+DISTRO=$(cat /etc/lsb-release | grep DISTRIB_DESCRIPTION | cut -c22- | sed s/\"//g)  ###  e.g. "antiX 17" (w/o quotation marks)
+###  list of desktop users
+ALLUSERS=$(grep "/bin/bash" < /etc/passwd | grep "[1][0-9][0-9][0-9]" | cut -d: -f1)
+
+### ==================  skidoo    What other processes to consider? packageinstaller?
+###     ? pgrep dpkg               /var/lib/dpkg/lock  naw quitting synaptic leaves this in place
+###                    /var/lib/apt/lists/lock    /var/cache/apt/archives/lock
+checkPackageManagerProcesses() {
+if [[ $(pidof synaptic | wc -w) != "0" ]] || [[ $(pidof aptitude | wc -w) != "0" ]] || \
+   [[ $(pidof gdebi | wc -w) != "0" ]]    || $(pidof apt-get | wc -w) != "0" ]] || \
+   [[ $(pidof apt | wc -w) != "0" ]]; then
+   echo "dammit"
+   yad --warning --image="gtk-dialog-warning" --button="cancel:0" --button="Continue:1" \
+       --title="dpkg/apt mechanism is already in use" --width=660 --height=320 \
+       --text="\nA Package Manager process (synaptic, aptitude, or apt) is currently running. \
+Those processes will be terminated before continuing.\n\nWould you like to proceed?" 2>/dev/null
+
+  if [[ "$?" != "0" ]]; then ${opt_procedure[@]}
+  else
+    echo ":☞  Terminating processes..."
+    for zig in "synaptic apt apt-get gdebi aptitude"; do
+        killall -9 $zig
+    done
+    #killall -9 synaptic 2>/dev/null ; killall -9 apt 2>/dev/null
+    #killall -9 apt-get ; killall -9 gdebi ; killall -9 aptitude
+  fi
+  echo "dammit anyhow"
+fi
+}
+
+
+woogalooLog() {
+_LOG="/tmp/woogaloo.log"
+  touch "$_LOG"; chown "$SOFTUSR":"$SOFTUSR" "$_LOG"; chmod 600 "$_LOG"
+}
+
+
+showProgress() {
+  stdbuf -oL sed -n -e '/\[*$/ s/^/# /p' -e '/\*$/ s/^/# /p'
+}
+
+
+###    skidoo    this fn is not currently used
+askLogoutSuper() {
+  ###   question  <<<<<<<<<<  (if implicit) cancel==1   OK==0     user_clicked_redX_or_ESCkey_to_exit==252
+  yad --question --image="gtk-dialog-question" --window-icon="info" \
+      --width=460 --height=180 --title="  $APPNAME" --button="Yes:0" --button="No:1" \
+      --text="\nChanges will take effect after next login.\n\n Would you like to logout now?" 2>/dev/null
+  if [[ "$?" = "0" ]]; then
+    echo ":☞  Logging out..."
+    DisplayMgr="$(service --status-all | egrep 'slim|lightdm|mdm' | awk '{ print $4}')"
+    for i in "$DisplayMgr"; do
+        service $1 restart 2>&1/dev/null
+    done
+  fi
+}
+
+
+checkInstall() {
+  if [[ "${PIPESTATUS[0]}" != "0" ]]; then 
+    echo ": ⁂  Error..."; echo ": ✘ ${_FNAME} installation failed"
+    yad "error" --image="gtk-dialog-error" --width=480 --height=120 \
+        --title=" Error" --button="OK" --text-align="center" \
+        --text="\nAn error occurred while installing ${_FNAME}" 2>/dev/null   
+    continue
+  fi
+}
+
+
+checkRemoval() {
+  if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+    echo ": ⁂  Error..."; echo ": ✘ ${_FNAME} uninstallation failed"
+    yad "error" --image="gtk-dialog-error" --width=460 --height=120 \
+         --title=" Error" --button="OK" --text-align="center" \
+         --text="\nAn error occurred while removing ${_FNAME}" 2>/dev/null
+    continue
+  fi
+}
+
+
+###  Get input from previous script
+ADMRUN="$@"
+###    skidoo   outcommented the following line
+#if [[ $(grep "BYPASSPSWADMPKEXEC" <<< "$ADMRUN") ]]; then ARRAYC+=('BYPASSPSWADMPKEXEC'); fi
+
+if [[ $(grep "FIXDBXFCE2" <<< "$ADMRUN") ]]; then ARRAYC+=('FIXDBXFCE2'); fi
+if [[ $(grep "LOGARCHIVES" <<< "$ADMRUN") ]]; then ARRAYC+=('LOGARCHIVES'); fi
+if [[ $(grep "PACKAGECACHE" <<< "$ADMRUN") ]]; then ARRAYC+=('PACKAGECACHE'); fi
+if [[ $(grep "PRELOAD" <<< "$ADMRUN") ]]; then ARRAYC+=('PRELOAD'); fi
+if [[ $(grep "RESIDCONFIG" <<< "$ADMRUN") ]]; then ARRAYC+=('RESIDCONFIG'); fi
+if [[ $(grep "SYSCACHEPR" <<< "$ADMRUN") ]]; then ARRAYC+=('SYSCACHEPR'); fi
+if [[ $(grep "SYSSWAP" <<< "$ADMRUN") ]]; then ARRAYC+=('SYSSWAP'); fi
+if [[ $(grep "ZRAM" <<< "$ADMRUN") ]]; then ARRAYC+=('ZRAM'); fi  
+if [[ $(grep "ZSWAP" <<< "$ADMRUN") ]]; then ARRAYC+=('ZSWAP'); fi
+if [[ $(grep "CHNAMEHOST" <<< "$ADMRUN") ]]; then ARRAYC+=('CHNAMEHOST'); fi
+if [[ $(grep "SAMBASVR" <<< "$ADMRUN") ]]; then ARRAYC+=('SAMBASVR'); fi
+
+showProgress() {
+  stdbuf -oL sed -n -e '/\[*$/ s/^/# /p' -e '/\*$/ s/^/# /p'
+}
+
+
+###  kill thunar instances  CURRENTLY, THIS FN IS NOT USED
+killThunar() {
+    echo ":☞  Terminating any ${_FNAME} instances..."
+    if [[ -n "$(pgrep thunar\|Thunar)" ]]; then 
+        signal_process=$(pgrep thunar\|Thunar)
+        for process in ${signal_process}; do
+            kill "$process"
+        done
+    fi
+}
+
+###         skidoo    not calling this fn
+###  bypass pkexec password prompt for admins
+#BYPASSPSWADMPKEXEC() {
+#echo ":☞  Configuring pkexec password prompt..."
+#
+#_WFILE0="/var/lib/polkit-1/localauthority/10-vendor.d/49-woogaloo_nopasswd_global.pkla"
+#_WFILE1="/usr/share/woogaloo/set/ACTPKEXEC"
+#_WFILE2="/home/${SOFTUSR}/.local/share/woogaloo/ACTPKEXEC"
+#
+#[[ ! -d "/home/${SOFTUSR}/.local/share/woogaloo" ]] && mkdir -p "/home/${SOFTUSR}/.local/share/woogaloo"
+#
+#if [[ ! -f "$_WFILE0" ]]; then
+#  echo ":☞  Bypassing pkexec password prompt for admins..."
+#  touch "$_WFILE0" 
+#  printf \
+#'[No pkexec password prompt for sudoers]
+#Identity=unix-group:sudo
+#Action=*
+#ResultActive=yes' > "$_WFILE0"
+#
+#    touch "$_WFILE1" "$_WFILE2"
+#    if [[ -f "$_WFILE0" && -f "$_WFILE1" && -f "$_WFILE2" ]]; then
+#       echo ": ✔  pkexec bypass for admins applied"
+#       yad --info --width=320 --height=60 --title="Success" --title=" Information" \
+#           --text="\n✔ pkexec bypass for admins applied" 2>/dev/null
+#    else
+#       echo ": ⁂  Error..." ; echo ": ✘ An error occurred applying pkexec bypass"
+#       yad "error" --image="gtk-dialog-error" --width=460 \
+#            --title="Woogaloo" --button="OK" \
+#           --text="an error occurred applying pkexec bypass" 2>/dev/null
+#    fi
+#else
+#  if yad --question --image="gtk-dialog-question" --width=460 --title="pkexec password prompt" \
+#          --button="Yes:0" --button="No:1" \
+#          --text="\nDo you want to enable pkexec password prompt for admins again?" 2>/dev/null; then 
+#    echo ":☞  Restoring pkexec password prompt for admins..."
+#    rm -f "$_WFILE0" "$_WFILE1" "$_WFILE2"
+#
+#    if [[ ! -f "$_WFILE0" && ! -f "$_WFILE1" && ! -f "$_WFILE2" ]]; then
+#        echo ": ✔  enabled pkexec required for admin users"
+#         yad --info --width=320 --height=60 --title="Success" --title=" Information" \
+#             --text="\n✔ enabled pkexec required for admin users" 2>/dev/null
+#    else
+#         echo ": ⁂  Error..."; echo ": ✘ An error occurred when attempting to restore pkexec req for admins"
+#         yad "error" --image="gtk-dialog-error" --width=460 \
+#             --title="Woogaloo" --button="OK" \
+#             --text="n error occurred when attempting to restore pkexec req for admins" 2>/dev/null
+#    fi
+#  fi
+#fi
+#}
+
+
+FIXDBXFCE2() {
+    ### (task: fix Xfce) set proper permissions for .dbus folder   ========== skidoo   wha?  currently, this fn is not called
+    echo ":☞  Fixing folder permissions ~/.dbus ..."
+    chown "$SOFTUSR":"$SOFTUSR" "/home/${SOFTUSR}/.dbus" -R
+    echo ": ✔  Fixes applied"
+}
+
+
+###  delete log archives
+LOGARCHIVES() {
+    echo ":☞  Deleting archived logs..."
+    find /var/log \( -name '*.gz' -o -name '*.0' -o -name '*.1' \) -exec rm -rf {} \;
+    if [[ "${PIPESTATUS[0]}" != "0" ]]; then echo ": ⁂  Error..."
+        yad "error" --image="gtk-dialog-error" --width=460 --height=120 \
+            --title=" Error" --button="OK" \
+            --text="\nan error occurred while deleting archived logs" 2>/dev/null; return
+    fi
+    echo ": ✔  Archived logfiles cleared"
+}
+
+
+###  task: clean up package cache
+PACKAGECACHE() {
+  echo ":☞  Cleaning packages cache..."
+  opt_procedure="continue" ; checkPackageManagerProcesses 
+  apt-get clean
+  if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+    echo ": ⁂  Error..."
+    yad "error" --image="gtk-dialog-error" --width=480 --height=120 \
+        --title=" Error" --button="OK" --text-align="center" \
+        --text="\nAn error occurred while cleaning the packages cache" 2>/dev/null; return
+  fi
+  echo ": ✔  Packages cache cleared"
+}
+
+
+### task: manage preload 
+PRELOAD() {
+_FNAME="Preload"
+echo ":☞  Getting ${_FNAME} status..."
+
+###  preload loop ###
+while (true); do
+echo ":☞  Configuring ${_FNAME}..."
+
+###  check preload is installed
+if [[ -z "$(dpkg -l | grep -E '^ii' | grep -F 'preload')" ]]; then
+  ### if NOT installed, then prompt user for installation
+  yad --question --image="gtk-dialog-question" --width=460 --height=180 --title=" $APPNAME" \
+      --button="Yes:0" --button="No {cancel}:1" \
+      --text="\nPreload is currently not installed in your system.\n Would you like to install preload now?" 2>/dev/null
+  if [[ "$?" != "0" ]]; then
+      break
+  fi
+  
+  ### check for running package manager
+  opt_procedure="break 2" ; checkPackageManagerProcesses
+
+  if [[ "$?" = "0" ]]; then
+      ### install preload
+      echo ":☞  Installing ${_FNAME}..."
+      apt-get install preload -y | showProgress ; checkInstall
+      echo ": ✔  ${_FNAME} successfully installed"; return
+  else    ### when user refuses installation, exit out
+      break
+  fi
+fi
+
+###  Check preload service is running and assign variables
+if ps ax | grep -v grep | grep "preload" > /dev/null; then _status="Running"; else _status="Stopped"; fi
+
+###  preload status dialog
+if [[ "$_status" =~ "Running" ]]; then
+  BTXT="\n<span font='Bold 10'>Preload Status</span>: <span foreground='green'>${_status}</span>\n\n*\
+   <span font='9'>${_FNAME} service is always started during boot up</span>"
+  YBTN=" Stop ${_FNAME}"
+else
+  BTXT="\n<span font='Bold 10'>Preload Status</span>: <span foreground='red'>${_status}</span>\n\n*\
+   <span font='9'>${_FNAME} service is always started during boot up</span>"
+  YBTN=" Start ${_FNAME}"
+fi
+
+###  preload Main dialog
+echo ":◊  Configuring $_FNAME..."
+PRLOAD=$(yad --width=365 --height=150 --text-align="center" --text="$BTXT" --fixed \
+             --button=" Uninstall"\!gtk-remove:2 --button="gtk-close:1" --button="$YBTN"\!gtk-apply:0 \
+             --window-icon="$RUN_ICON" --title="$APPNAME" ; echo $?)
+case $PRLOAD in
+    0)  if [[ "$_status" =~ "Running" ]]; then
+            echo ":☞  Stopping $_FNAME..."; service preload stop  # 2>&1/dev/null
+        else
+            echo ":☞  Starting $_FNAME..."; service preload start # 2>&1/dev/null
+        fi
+        ;;
+    1)  return
+        ;;
+    2)  ### remove preload  ==========  adaptive readahead daemon (pkg.size 103kb)
+        yad --question --image="gtk-dialog-question" --width=460 --title=" $APPNAME" \
+            --button="Yes:0" --button="No {cancel}:1" \
+            --text="\nAre you sure you want to remove ${_FNAME?}?" 2>/dev/null
+        ### check for running package manager
+        opt_procedure="continue"; checkPackageManagerProcesses
+
+        if [[ "$?" = "0" ]]; then
+            echo ":☞  Removing ${_FNAME}..."
+            service preload stop # 2>&1/dev/null
+            apt-get remove --purge preload -y | showProgress ; checkRemoval
+            echo ": ✔  $_FNAME successfully removed"
+            return
+        fi
+        ;;
+    *)  return ;;
+  esac
+done
+}
+
+
+###  task: manage residual config files  ======== begs more thorough description
+RESIDCONFIG() {
+  dpkg --purge $(dpkg -l | grep '^rc' | awk '{print $2}')
+  echo ":☞  Removing residual configuration files..."
+  if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+     echo ": ⁂  Error..."
+     yad "error" --image="gtk-dialog-error" --width=460 --height=120 \
+         --title="    Error"  --button="OK" \
+         --text="\nan error occurred while removing residual configuration files" 2>/dev/null
+     return
+  fi
+  echo ": ✔  Residual configuration files cleared"
+}
+
+
+### task: adjust kernel cache pressure setting
+SYSCACHEPR() {
+echo ":☞  Configuring kernel cache pressure..."
+while (true); do
+
+echo ":◊  Configuring kernel cache pressure..."
+_SYSFL="/etc/sysctl.conf"
+_CACHEPR="$(cat /proc/sys/vm/vfs_cache_pressure)"
+_MDIALOGTITLE="Woogaloo - Kernel Cache Pressure"
+
+###  Main dialog
+VALCP=$(yad --image="$DLGICON" --window-icon="$RUN_ICON" --width=740 --height=540 --borders=8 \
+            --fixed --center --scale --value="$_CACHEPR" --min-value="1" --max-value=150 --title="$_MDIALOGTITLE" \
+            --button="gtk-close":1 --button=" Reset"\!gtk-refresh:2 --button="gtk-apply":0 \
+            --text="<span font='Bold 11'>\nCache Pressure</span>\n\nDefines how the system will choose to cache inode and dentry information over other data.
+\nBasically, this is access data about the filesystem. It is generally very costly to look up and also\nvery frequently requested, so it's an excellent thing for your system to cache.
+\nAt the default value (100), the kernel will attempt to reclaim dentries and inodes at a 'fair' rate\nwith respect to pagecache and swapcache reclaim.
+\nDecreasing cache pressure causes the kernel to prefer to retain dentry and inode caches. 
+Increasing cache pressure beyond 100 causes the kernel to prefer to reclaim dentries and inodes.
+\n<span font='Bold 11'>Recommended Value</span>\n
+vfs_cache_pressure = 50
+* Increasing cache pressure significantly beyond 100 may have negative performance impact.
+\n\n  ▼ <span font='Bold 12'> Set Cache Pressure</span>")
+
+  case $? in
+      0)  if [[ "$_CACHEPR" = "$VALCP" ]]; then
+            echo ":◊  Already $VALCP. No changes needed..." ; continue
+          fi
+
+          ### set sysctl cache_pressure value
+          sysctl vm.vfs_cache_pressure=$VALCP
+
+          if grep -q -F 'vm.vfs_cache_pressure' "$_SYSFL"; then
+            echo ":☞  Applying cache pressure value..."
+            echo "vm.vfs_cache_pressure = $VALCP" | tee -a "$_SYSFL"
+          fi
+          
+          if [[ -n $"(grep 'vm.vfs_cache_pressure' $_SYSFL)" ]]; then 
+            echo ":☞  Updating cache pressure value..."
+            sed -i 's/.*vm.vfs_cache_pressure.*/vm.vfs_cache_pressure = '"$VALCP"'/g' "$_SYSFL"
+          fi
+      
+          if [[ "${PIPESTATUS[0]}" != "0" ]]; then echo ": ⁂  Error..."
+              yad "error" --image="gtk-dialog-error" --width=460 \
+                  --height=120 --title=" Error" --button="OK" \
+                  --text="\nAn error occurred applying new values" 2>/dev/null
+              continue
+          else
+              sysctl -p
+              yad --info --width=460 --height=60 --title="Success" --title=" Information" \
+                     --text="\nNew cache pressure value has been successfully applied" 2>/dev/null
+          fi ;;
+    1) break ;;
+    2)  if [[ "$_CACHEPR" = "100" ]]; then
+          echo ":☞  Already $VALCP. No changes needed..."
+          continue
+        fi
+
+        ### reset cache pressure
+        echo ":☞  Reseting cache pressure value..."
+        grep -q -F 'vm.vfs_cache_pressure' "$_SYSFL" && sed -i '/.*vm.vfs_cache_pressure.*/d' "$_SYSFL"
+        sysctl vm.vfs_cache_pressure=100 && sysctl -p ;;
+  252) break ;; 
+   -1) echo ": ⁂   an error occurred during reset vfs_cache_pressure" ;;
+  esac
+done
+}
+
+
+###  task: adjust kernel swappiness setting
+SYSSWAP() {
+_SYSFL="/etc/sysctl.conf"  ### sysctl.conf variable
+echo ":☞  Configuring swappiness..."
+
+###  kernel swappiness main dialog loop
+while (true); do
+
+echo ":☞☞  do Configuring swappiness..."
+_SWPNSS="$(< /proc/sys/vm/swappiness)"
+
+###  Main dialog
+_MDIALOGTITLE="Woogaloo - Adjust System Swappiness"
+_MDIALOGTXT="<span font='Bold 11'>\nSwappiness</span>\n
+The Linux kernel provides a ratio of preference to which the system favors anonymous memory\n or the page cache, known as swappiness.\n
+A high value improves file-system performance, while aggressively swapping less active processes
+out of physical memory. A low value avoids swapping processes out of memory, which usually
+decreases latency, at the cost of I/O performance.
+\nUbuntu system\'s default value is 60. Systems with more than adequate RAM for any expected 
+task may want to drastically lower the setting.
+\n<span font='Bold 11'>Recommended Swappiness Values</span>\n
+- Swappiness = 10  Recommended when sufficient RAM exists in a system
+- Swappiness = 60  Default system value
+- Swappiness = 100 The kernel will swap aggressively
+\n<span font='Bold 11'>Calculate your Swap Formula</span>
+\nfree -m (total) / 100 = A   (Total system memory divided by 100 equals A)
+A * 10 = B   (A, times 10, equals B)
+B   (the amount -in Megabytes- of free RAM left in the system before swapping)
+\n  ▼ <span font='12'> Set System Swappiness</span>"
+
+VALUE=$(yad --image="$DLGICON" --window-icon="$RUN_ICON" --width=740 --height=590 --fixed --center \
+            --title="$_MDIALOGTITLE" --borders=8 --button="gtk-close":1 --button=" Reset"\!gtk-refresh:2 --button="gtk-apply":0 \
+            --scale --min-value="1" --max-value=100 --value="$_SWPNSS" --text="$_MDIALOGTXT")
+  case $? in
+       0) ### If system's current swappiness equals new set value, don't make unnecessary changes
+          if [[ "$_SWPNSS" = "$VALUE" ]]; then
+            echo ":☞  Already ${VALUE}. No changes needed..."
+            continue
+          fi
+
+          ### set sysctl swappiness value   
+          sysctl vm.swappiness="$VALUE"
+
+          if grep -q -F 'vm.swappiness' "$_SYSFL"; then
+            echo ":☞  Updating swappiness value..."
+            sed -i 's/.*vm.swappiness.*/vm.swappiness = '"$VALUE"'/g' "$_SYSFL"   
+          else
+            echo ":☞  Applying new swappiness value..."
+            sed -i -e "\$avm.swappiness = "$VALUE"" "$_SYSFL"
+          fi
+      
+          if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+              echo ": ⁂  Error..."
+              yad "error" --image="gtk-dialog-error" --width=460 \
+                  --height=120 --title="    Error" --button="OK" \
+                  --text="\nan error occurred applying new values" 2>/dev/null
+              continue
+          else
+              sysctl -p
+              yad --info --width=320 --height=60 --title="Success" --title=" Information" \
+                  --text="\nNew swappiness value has been successfully applied" 2>/dev/null
+          fi ;;
+       1) break ;;
+       2) if [[ "$_SWPNSS" = "60" ]]; then
+              echo ":☞  Already ${VALUE}. No changes needed..."
+              continue
+          fi
+          echo ":☞  Reseting swappiness value..." 
+          grep -q -F 'vm.swappiness' "$_SYSFL" && sed -i '/.*vm.swappiness.*/d' "$_SYSFL"
+          sysctl vm.swappiness=60 && sysctl -p ;;
+     252) break ;;
+      -1) echo ": ⁂   an error occurred in setting vm.swappiness" ;;
+  esac
+done 
+}
+
+
+###  task manage zram
+ZRAM() {
+_FNAME="zRAM"
+echo ":☞  Getting ${_FNAME} status..."
+
+###  begin 80line loop ###
+while (true); do
+echo ":☞  Configuring ${_FNAME}..."
+
+###  Check zram is installed  ============ PROVIDED BY PACKAGE "antix-goodies"
+if [[ -z  "$(dpkg -l | grep -E '^ii' | grep 'zram-config')" ]] ||
+   [[ -z  "$(dpkg -l | grep -E '^ii' | grep 'antix-goodies')" ]]; then
+  
+  ### if not installed, prompt user for installation
+  yad --question --image="gtk-dialog-question" --width=460 --height=120 --title=" $APPNAME" \
+         --button="Yes:0" --button="No:1" \
+         --text="\nzRAM is currently not enabled in your system.\nWould you like to enable zRAM support now?" 2>/dev/null
+    if [[ "$?" != "0" ]]; then
+      break
+    fi   ### exit on cancel
+
+  ### check for running package manager
+  opt_procedure="break 2" ; checkPackageManagerProcesses
+
+  ### install zram  ================= skidoo    hmmmm  idunno
+  if [[ "$?" = "0" ]]; then
+    echo ":☞  Installing ${_FNAME}..."
+    apt-get install zram-config -y | showProgress ; checkInstall
+    echo ": ✔  zRAM successfully installed"; service zram-config start # 2>&1/dev/null
+    return
+  else 
+    exit 0   ### when user refuses installation, exit from zRAM task
+  fi
+fi
+
+###  Check zRAM service is running and assign variables
+[[ -e /dev/zram0 ]] && _status="Running" || _status="Stopped"
+
+###  zRAM Status Main dialog
+echo ":☞  Configuring ${_FNAME}..."
+if [[ "$_status" =~ "Running" ]]; then
+  BTXT="\n<span font='Bold 10'>zRAM Status</span>: <span foreground='green'>${_status}</span>\n\n*\
+ <span font='9'>${_FNAME} service is always started during boot up</span>"
+  YBTN=" Stop ${_FNAME}"
+else
+  BTXT="\n<span font='Bold 10'>zRAM Status</span>: <span foreground='red'>${_status}</span>\n\n*\
+ <span font='9'>${_FNAME} service is always started during boot up</span>"
+  YBTN=" Start ${_FNAME}"
+fi
+
+###  zRAM Main dialog
+sZRAM=$(yad --width=365 --fixed --height=150 --window-icon="$RUN_ICON" --title="$APPNAME" \
+            --button=" Uninstall"\!gtk-remove:2 --button="gtk-close:1" --button="$YBTN"\!gtk-apply:0 \
+            --text-align="center" --text="$BTXT" ; echo $?)
+  case $sZRAM in
+    0)  if [[ "$_status" =~ "Running" ]]; then  ### stop
+            echo ":☞  Stopping $_FNAME..."; service zram-config stop  # 2>&1/dev/null
+          else
+            echo ":☞  Starting $_FNAME..."; service zram-config start # 2>&1/dev/null
+        fi
+        ;;
+    1)  return
+        ;;
+    2)  ### Remove zram
+        yad --question --image="gtk-dialog-question" --width=460 --title=" $APPNAME" \
+            --button="Yes:0" --button="No {cancel}:1" \
+            --text="\nAre you sure you want to remove ${_FNAME}?" 2>/dev/null
+        if [[ "$?" = "0" ]]; then
+
+          ### check for running package manager
+          opt_procedure="continue" ; checkPackageManagerProcesses
+
+          ### uninstall zram
+          echo ":☞  Removing $_FNAME..."
+          service zram-config stop # 2>&1/dev/null
+          apt-get remove --purge zram-config -y | showProgress ; checkRemoval
+          echo ": ✔  zRAM successfully removed"
+          return
+        fi
+        ;;
+    *)  return ;;
+  esac
+done
+}
+
+
+
+
+###  task: manage zswap
+ZSWAP() {
+_FNAME="zSWAP"
+echo ":☞  Getting $_FNAME status..."
+
+###  if zswap is not enabled; enable it
+if grep -q 'N' "/sys/module/zswap/parameters/enabled"; then
+  echo ":◊  Configuring zSWAP..."
+
+  ### prompt for confirmation
+  yad --question --image="gtk-dialog-question" --width=460 --height=180 --title="$_FNAME" \
+      --button="Yes:0" --button="No:1" \
+      --text="\nzSWAP is not currently enabled in the system.\nWould you like to enable zSWAP?" 2>/dev/null
+  if [[ "$?" = "0" ]]; then
+    ### enable zswap
+    echo ":☞  Enabling zSWAP..."
+    echo ":☞  Enabling lz4 lz4_compress..."    ### enable lz4 (for faster compression/decompression)
+    modprobe -v lz4 lz4_compress | showProgress
+    printf \
+'# Begin ZSWAP woogaloo - DO NOT EDIT
+lz4
+lz4_compress
+# ZSWAP woogaloo' >> /etc/initramfs-tools/modules
+
+    echo ":☞  Updating initramfs..."; update-initramfs -u | showProgress
+    echo ":☞  Updating kernel boot parameters..." 
+
+    ### grub GRUB_CMDLINE_LINUX_DEFAULT var replacement
+    VARZSWAPREPLACE=$(grep 'GRUB_CMDLINE_LINUX_DEFAULT' "/etc/default/grub" | sed 's/\"/ /2' |
+    sed 's/$/zswap\.enabled=1 zswap\.compressor=lz4 zswap\.max_pool_percent=20 zswap\.zpool=z3fold"/')
+
+    ### enabling zswap kernel parameters
+    sed -i "s|GRUB_CMDLINE_LINUX_DEFAULT.*|$VARZSWAPREPLACE|" "/etc/default/grub"
+
+    echo ":☞  Updating grub..."; update-grub 2>&1 | showProgress
+    echo ": ✔  zSWAP has been enabled"
+    yad --info --width=540 --height=140 --title=" $_FNAME" \
+        --text="✔ zSWAP has been enabled.\n\nYou must restart the computer for change to take effect.\n" 2>/dev/null
+  fi
+else
+  echo ":◊  Configuring zSWAP..."
+  ### prompt for removal confirmation
+  yad --question --image="gtk-dialog-question" --width=460 --height=120 --title="$_FNAME" \
+      --button="Yes:0" --button="No:1" \
+      --text="\nzSWAP is currently enabled in the system.\nWould you like to disable zSWAP?" 2>/dev/null
+  if [[ "$?" = "0" ]]; then
+    echo ":☞  Disabling zSWAP..."
+    sed -i -e '/woogaloo/,+3d' /etc/initramfs-tools/modules
+
+    echo ":☞  Updating initramfs..."; update-initramfs -u | showProgress
+    echo ":☞  Updating kernel boot parameters..."
+    ### delete zswap kernel parameters
+    sed -i 's/[ \t]zswap\.enabled=1//g ; s/[ \t]zswap\.compressor=lz4//g ; s/[ \t]zswap\.max_pool_percent=20//g ; s/[ \t]zswap\.zpool=z3fold//g' "/etc/default/grub"
+
+    echo ":☞  Updating grub..." ; update-grub 2>&1 | showProgress
+    echo ": ✔  zSWAP has been disabled"
+    yad --button="OK" --info --width=320 --height=120 --title=" $_FNAME" \
+        --text="✔ zSWAP has been disabled.\n\nYou must restart the computer for change to take effect.\n" 2>/dev/null
+  fi
+fi
+continue
+}
+
+
+###  SERVICES: samba - smbd, nmbd
+SAMBASVR() {
+  if [[ -n $(pgrep -f 'smbd') ]]; then
+    if yad --question  --image="gtk-dialog-question" --button="Yes:0" --button="No {cancel}:1" \
+           --title="$APPNAME - Confirm" --width=460 \
+           --text="\n You are about to disable Samba. Would you like to proceed?" 2>/dev/null; then
+      #echo ":◊  Disabling samba service..."
+      service smbd stop    2>&1/dev/null
+      service smbd disable 2>&1/dev/null
+      service nmbd stop    2>&1/dev/null
+      service nmbd disable 2>&1/dev/null
+      if [[ -n $(service smbd status | grep dead) && -n $(service nmbd status | grep dead) ]]; then
+        echo ": ✔  samba services have been disabled"
+      else
+        echo ": ⁂   an error occurred while disabling samba service"
+      fi
+    fi
+  else
+    echo ":☞ Enabling samba services..."
+    service smbd enable 2>&1/dev/null
+    service smbd start  2>&1/dev/null
+    service nmbd enable 2>&1/dev/null
+    service nmbd start  2>&1/dev/null
+    if [[ -n $(pgrep -f 'smbd') && -n $(pgrep -f 'nmbd') ]]; then
+        echo ": ✔  samba services have been enabled"
+        yad --info --width=320 --height=60 --title="Success" --title=" Information" \
+            --text="\n✔ samba services have been enabled" 2>/dev/null
+    else
+        echo ": ⁂   An error occurred while enabling samba service"
+        yad "error" --image="gtk-dialog-error" --width=460 --height=120 \
+            --title="    Error"  --button="OK" \
+            --text="\nan error occurred while enabling samba service" 2>/dev/null
+    fi
+  fi
+}
+
+
+
+
+
+
+
+###  task: change hostname
+CHNAMEHOST() {
+_HOSTNAME=$(hostname)
+echo ":☞  Changing hostname... ${_HOSTNAME}"
+
+### Change Hostname Xfce MATE LXce
+if [[ "$DENV" =~ "Xfce" ]] || [[ "$DENV" =~ "MATE" ]]; then
+while (true); do            ###    NO CANCEL BUTTON HERE?
+    _NEW_HOSTNAME=$(yad --entry --width="350" --height="200" --window-icon="$_ICON" \
+                --button="Change" --title=" Change Hostname" \
+                --entry-text="${_HOSTNAME}" --text="Your computer's current hostname is: ' ${_HOSTNAME} '\n\
+Enter the desired new hostname (e.g.: LinuxBox) below to proceed.\n\n\
+Note: The hostname must not be empty, or start with hashtags, or\ncontain whitespaces or underscores.\n" 2>/dev/null)
+    if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+        return
+    fi
+
+    ### If hostname is only blank spaces or starts with a hashtag, warn and loop
+    egrep "^[[:space:]]*$|^#|[[:space:]]|*_.*" <<< "$_NEW_HOSTNAME" >/dev/null
+    if [[ "$?" = "0" ]]; then
+        yad --warning --image="gtk-dialog-warning" --button="OK" \
+            --title=" Hostname not changed" --width="480" \
+            --text="The new hostname must not be empty, nor start with a hashtag {poundsign} chracter, nor contain white spaces or underscores.\n\n\
+The hostname could be changed." 2>/dev/null
+        continue
+
+### If old hostname and new hostname are the same, warn and loop
+    elif [[ "$_NEW_HOSTNAME" = "$_HOSTNAME" ]]; then
+        yad --info --button="OK" --image="gtk-dialog-info" --width="460" --height="100" \
+            --title=" Hostname not changed" \
+            --text="\nNo new hostname was entered. Please try again." 2>/dev/null
+        continue
+    else
+        echo ":☞  Changing hostname to ' $_NEW_HOSTNAME ' "
+        echo "$_NEW_HOSTNAME" > /proc/sys/kernel/hostname
+        sed -i 's/127.0.1.1.*/127.0.1.1\t'"$_NEW_HOSTNAME"'/g' /etc/hosts
+        echo "$_NEW_HOSTNAME" > /etc/hostname
+        service networking restart 2>&1/dev/null
+        cd "/home/${SOFTUSR}"
+        su $SOFTUSR -c "xauth add $(xauth list | grep "$_HOSTNAME" | sed 's/'"$_HOSTNAME"'\//'"$_NEW_HOSTNAME"'\//g' | awk 'NR==1 {print}')"
+        ### update netbios name = hostname in Samba smb.conf
+        _SMBCONF="/etc/samba/smb.conf"
+        sed -i "s/netbios name =.*/netbios name = "$_NEW_HOSTNAME"/" "$_SMBCONF"
+        echo ":☞  Updating services. Please wait..."
+        ###     CANNOT PRESUME THESE ARE AVAILABLE, AND ARE CURRENTLY RUNNING
+        service smbd restart 2>&1/dev/null
+        service nmbd restart 2>&1/dev/null
+        service network-manager restart 2>&1/dev/null; sleep 3 ; dhclient 2>&1/dev/null
+        chown "$SOFTUSR":"$SOFTUSR" "/home/${SOFTUSR}/.Xauthority"
+
+        if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+            yad "error" --image="gtk-dialog-error" --width="480" --button="Close" \
+               --title=" Error" --text="\nan error occurred while changing the hostname" 2>/dev/null; return
+        else
+            yad --info --button="OK" --image="gtk-dialog-info" --width="460" --height="180" \
+                --title=" Hostname changed"  \
+                --text="\nThe hostname has been successfully updated.\n\nClose and reopen any Terminal window you may have open to reflect changes." 2>/dev/null; return
+        fi
+    fi
+done
+fi
+}
+
+
+
+
+
+
+
+## Arrays execution
+printf '%s \n' "${ARRAYC[@]}"|
+while read line; do
+    "$line" 2>/dev/null    ### Execute functions one-at-a-time
+    if [[ "$?" = "1" ]]; then
+        yad "error" --image="gtk-dialog-error" --width=460 --title="Woogaloo" \
+            --text="An error occurred while executing:\n\n ${line}" 2>/dev/null
+        exit 1
+    fi
+done | yad --text-align=center --progress --pulsate --auto-close --auto-kill \
+           --width=360 --height=110 --fixed --center --borders=10 --skip-taskbar \
+           --undecorated --no-buttons --text="<span font='13'>\nwoogaloo</span>"
+
+unset ARRAYC
+unset ADMRUN
+### no exit b/c this script was called from woogaloo-main

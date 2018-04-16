@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=woogaloo
+Comment=Customize, tweak and clean your system
+Exec=woogaloo
+Icon=woogaloo
+Terminal=false
+Type=Application
+Encoding=UTF-8
+Categories=XFCE;GTK;Application;System;Settings;X-XFCE-SettingsDialog;
+StartupNotify=false
+Keywords=customize;tweak;settings;

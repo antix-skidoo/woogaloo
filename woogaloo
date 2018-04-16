@@ -1,0 +1,687 @@
+#!/bin/bash
+###  script name: woogaloo
+###
+###  derived from "UnlockMe" by Ralphy Rhdez <rafaelrhd3z@gmail.com>
+###  License: GPLv2, or later
+###
+###  design pattern xref: /usr/local/bin/inxi-gui  by kmathern
+
+if [[ -f /tmp/woogaloo-admin.lock ]] || pidof -o %PPID -x "woogaloo" >/dev/null; then
+    echo ": ⁂   another instance is already running..."
+    yad "error" --image="gtk-dialog-error" --width=480 --title="Woogaloo" \
+        --button="OK" --text-align="center" \
+        --text="\nAnother woogaloo instance is already running" 2>/dev/null; exit 1
+fi
+
+SAMBASTUFF="yes"
+
+### desktop users (var is redefined in the woogaloo-admin script; not currently used in main script)
+ALLUSERS=$(grep "/bin/bash" < /etc/passwd | grep "[1][0-9][0-9][0-9]" | cut -d: -f1)
+
+### startup splash    NAW, THE DELAY ISN'T SIGNIFICANT AND LEAVES USER WONDERING WHAT WAS IN THE DIALOG THAT "FLASHED PAST"
+###yad --width=340 --height=120 --info --center --skip-taskbar --undecorated --no-buttons --timeout=3 --text-align=center \
+###                  --text='\n\n\n<span font="14">Getting Ready</span>\n<span font="11"> \n  please wait...\n</span>' & 
+
+
+
+###  remove browser profile 
+removeBrowserProfile() {
+  echo ":☞  Removing ${_BROWSERNAME} browser profile..."
+  ###   question  <<<<<<<<<<  (if implicit) cancel==1   OK==0     user_clicked_redX_or_ESCkey_to_exit==252
+  yad --question --width=580 --image="gtk-dialog-question" \
+         --title="Browser profile removal" --button="Yes:0" \
+         --button="No {cancel}:1" --text-align="center" \
+         --text="\nAre you sure you want to remove ${_BROWSERNAME} profile?\n\nThis action cannot be reverted." 2>/dev/null;
+  if [[ "$?" = "0" ]]; then 
+      rm -rf "$_BROWSERPROFILE"
+      if [[ "${PIPESTATUS[0]}" != "0" ]]; then 
+          echo ": ⁂  Error..."
+          yad "error" --image="gtk-dialog-error" --width=460 --height=120 --title=" Error" --button="OK" \
+               --text="\nAn error occurred while removing\n ${_BROWSERNAME} browser profile" 2>/dev/null; return
+      fi
+      echo ": ✔  ${_BROWSERNAME} browser profile removed"
+  else
+      continue
+  fi
+}
+
+
+###  remove browser cache 
+removeBrowserCache() {
+    echo ":☞  Removing ${_BROWSERNAME} browser cache..."
+    rm -rf "${_BROWSERCACHEDIR}"/*
+    if [ "${PIPESTATUS[0]}" -ne "0" ]; then echo ": ⁂  Error..."
+      yad "error" --image="gtk-dialog-error" --width=460 --height=120 --title=" Error" --button="OK" \
+          --text="\nAn error occurred while removing\n ${_BROWSERNAME} browser cache" 2>/dev/null; return
+    fi
+    echo ": ✔  ${_BROWSERNAME} browser cache cleared"
+}
+
+
+###  remove Chrome cache 
+CHROMECACHE() {
+  _BROWSERNAME="Google Chrome" _BROWSERCACHEDIR="${HOME}/.cache/google-chrome/" ; removeBrowserCache
+}
+
+
+###  remove Chrome profile 
+CHROMEPROFILE() {
+  _BROWSERNAME="Google Chrome" _BROWSERPROFILE="${HOME}/.config/google-chrome/" ; removeBrowserProfile
+}
+
+
+###  remove Chromium Cache 
+CHROMIUMCACHE() {
+  _BROWSERNAME="Chromium" _BROWSERCACHEDIR="${HOME}/.cache/chromium/" ; removeBrowserCache
+}
+
+
+###  remove Chromium profile 
+CHROMIUMPROFILE() {
+  _BROWSERNAME="Chromium" _BROWSERPROFILE="${HOME}/.config/chromium/" ; removeBrowserProfile
+}
+
+
+###  remove Firefox Cache 
+FIREFOXCACHE() {
+  _BROWSERNAME="Firefox" 
+  echo ":☞  Looking up ${_BROWSERNAME} browser profiles..."
+  cd "${HOME}/.mozilla/firefox" && FFPRODIRS=$(grep 'Path' profiles.ini | cut -d\= -f2)
+  for DIR in ${FFPRODIRS[@]}; do
+    FFCACHEDIR=$(grep 'browser.cache.disk.parent_directory' "${DIR}/prefs.js" | awk '{print $2}' | cut -d\" -f2 -)
+    if [[ -n   "$FFCACHEDIR" ]]; then
+        rm -rf "$FFCACHEDIR"/*
+        rm -rf "$DIR"/cache2/*
+    else
+        rm -rf "$DIR"/cache2/*
+    fi
+ done
+  _BROWSERCACHEDIR="${HOME}/.cache/mozilla/firefox/" ; removeBrowserCache
+}
+
+
+###  remove Firefox profile 
+FFOXPROFILE() {
+  _BROWSERNAME="Firefox" _BROWSERPROFILE="${HOME}/.mozilla/firefox/" ; removeBrowserProfile
+}
+
+###  remove Midori Cache 
+MIDORICACHE() {
+  _BROWSERNAME="Midori" _BROWSERCACHEDIR="${HOME}/.cache/midori/" ; removeBrowserCache
+}
+
+###  remove Midori profile 
+MIDORIPROFILE() {
+  _BROWSERNAME="Midori" _BROWSERPROFILE="${HOME}/.config/midori/" ; removeBrowserProfile
+}
+
+###  remove Opera cache
+OPERACACHE() {
+  _BROWSERNAME="Opera" _BROWSERCACHEDIR="${HOME}/.cache/opera/Cache/" ; removeBrowserCache
+}
+
+###  remove Opera profile 
+OPERAPROFILE() {
+  _BROWSERNAME="Opera" _BROWSERPROFILE="${HOME}/.config/opera/" ; removeBrowserProfile
+}
+
+###  remove Pale Moon cache
+PALEMOONCACHE() {
+  _BROWSERNAME="Pale Moon" _BROWSERCACHEDIR="${HOME}/.cache/moonchild productions/pale moon/" ; removeBrowserCache
+}
+
+###  remove Pale Moon profile 
+PALEMOONPROFILE() {
+  _BROWSERNAME="Pale Moon" _BROWSERPROFILE="${HOME}/.moonchild productions/" ; removeBrowserProfile
+}
+
+###  remove SeaMonkey cache 
+SEAMONKEYCACHE() {
+  _BROWSERNAME="SeaMonkey" _BROWSERCACHEDIR="${HOME}/.cache/mozilla/seamonkey/" ; removeBrowserCache
+}
+
+###  remove SeaMonkey profile 
+SEAMONKEYPROFILE() {
+  _BROWSERNAME="SeaMonkey" _BROWSERPROFILE="${HOME}/.mozilla/seamonkey/" ; removeBrowserProfile
+}
+
+
+###  delete thumbnail cache
+THUMBNAILS() {
+  echo ":☞  Deleting Thumbnail Cache..."
+  if [[ -e ${HOME}/.cache/thumbnails ]]; then
+      rm -rf ${HOME}/.cache/thumbnails/*
+  fi
+  if [[ -e ${HOME}/.thumbnails ]]; then
+      rm -rf ${HOME}/.thumbnails/*
+  fi
+  if [[ "${PIPESTATUS[0]}" != "0" ]]; then 
+      echo ": ⁂  Error..."
+      yad "error" --image="gtk-dialog-error" --width=460 --height=120 \
+          --title=" Error" --button="OK" --text-align="center" \
+          --text="\nAn error occurred while deleting Thumbnail cache" 2>/dev/null; return
+  fi
+  echo ": ✔  Thumbnail Cache cleared"
+}
+
+
+###  empty trash bin
+TRASHBIN() {
+if [[ -e ${HOME}/.local/share/Trash/files/ ]]; then
+    echo ":☞  Emptying the Trash bin..."
+    rm -rf ${HOME}/.local/share/Trash/files/*
+    if [[ "${PIPESTATUS[0]}" != "0" ]]; then
+      echo ": ⁂  Error..."
+      yad "error" --image="gtk-dialog-error" --width=460 --height=120 \
+          --title=" Error" --button="OK" --text-align="center" \
+          --text="\nan error occurred while emptying the Trash bin" 2>/dev/null; return
+    fi
+  echo ": ✔  Trash bin emptied"
+fi
+}
+
+
+###  remove Vivaldi Cache 
+VIVALDICACHE() {
+  _BROWSERNAME="Vivaldi" _BROWSERCACHEDIR="${HOME}/.cache/vivaldi/" ; removeBrowserCache
+}
+
+###  remove Vivaldi profile 
+VIVALDIPROFILE() {
+  _BROWSERNAME="Vivaldi" _BROWSERPROFILE="${HOME}/.config/vivaldi/" ; removeBrowserProfile
+}
+
+###  remove Waterfox Cache 
+WATERFOXCACHE() {
+  _BROWSERNAME="Waterfox" _BROWSERCACHEDIR="${HOME}/.cache/waterfox/" ; removeBrowserCache
+}
+
+###  remove Waterfox profile 
+WATERFOXPROFILE() {
+  _BROWSERNAME="Waterfox" _BROWSERPROFILE="${HOME}/.waterfox/" ; removeBrowserProfile
+}
+
+
+
+
+ARRAYS() {
+###  Invoke arrays
+ARRAYA=()    ### Array for non-admin tasks
+ARRAYB=()    ### Array for admin tasks
+
+###  array A definitions
+ARRAYADEF=(CHROMECACHE CHROMEPROFILE CHROMIUMCACHE CHROMIUMPROFILE FIREFOXCACHE FFOXPROFILE FIXDBCIN \
+           FIXDBXFCE MIDORICACHE MIDORIPROFILE OPERACACHE OPERAPROFILE PALEMOONCACHE PALEMOONPROFILE \
+           PRELOAD SEAMONKEYCACHE SEAMONKEYPROFILE SYSSWAP THUMBNAILS TRASHBIN VIVALDICACHE \
+           VIVALDIPROFILE WATERFOXCACHE WATERFOXPROFILE ZRAM ZSWAP NULL)
+
+###  array B definitions   (skidoo    removed  BYPASSPSWADMPKEXEC )
+ARRAYBDEF=(LOGARCHIVES PACKAGECACHE RESIDCONFIG SYSCACHEPR CHNAMEHOST SAMBASVR NULL)
+
+SELECTRUN=${#selection[@]}
+
+###  construct arrays from user selection
+for (( i=0; i<${SELECTRUN}; i++ ))
+ do
+  grep -q "${selection[${i}]}" <<< "${ARRAYADEF[@]}" && ARRAYA+=("${selection[${i}]}")
+  grep -q "${selection[${i}]}" <<< "${ARRAYBDEF[@]}" && ARRAYB+=("${selection[${i}]}")
+
+  ### remove selections
+  ### remove preload from array
+  if grep -q 'PRELOAD' <<< "${selection[${i}]}"; then
+      ### if kernel swappiness is set in /etc/sysctl.conf display info  
+      if [[ -n "$(grep -F 'vm.swappiness' /etc/sysctl.conf)" ]]; then
+          ### remove
+          REMOVE="PRELOAD"
+          ARRAYB=( "${ARRAYB[@]/$REMOVE}" )
+
+          yad --warning --image="gtk-dialog-warning" --width=640 --height=560  \
+              --button="OK" --title="Custom kernel swappiness detected" \
+              --text="\nYou must reset Kernel Swappiness to defaults before enabling Preload. \
+\n\nPreload is an adaptive readahead daemon that prefetches files mapped by applications from the disk to reduce their startup time. \
+It already favors and makes use of the kernel page cache. \
+\n\nContrary to common online tweakguides advice, there should not be a custom vm.swappiness set in the system while also using Preload. \
+\n\nYou can reset Kernel Swappiness using the woogaloo Kernel Swappiness task." 2>/dev/null
+      else
+          ARRAYB+=('PRELOAD')
+      fi
+  fi
+
+  ### remove kernel swappiness from array
+  if grep -q 'SYSSWAP' <<< "${selection[${i}]}"; then
+    
+      ### if preload is installed, display info
+      if [[ -n "$(dpkg -l | grep -E '^ii' | grep '\spreload\s\s')" ]]; then
+          ### remove
+          REMOVE="SYSSWAP"
+          ARRAYB=( "${ARRAYB[@]/$REMOVE}" )
+          yad --warning --image="gtk-dialog-warning" --width=480 --height=580 \
+              --title="preload daemon detected" --button="OK" \
+              --text="\nYou must remove Preload from the system before manually adjusting kernel swappiness. \
+\n\nPreload is an adaptive readahead daemon that prefetches files mapped by applications from the disk to reduce their startup time. \
+It already favors and makes use of the kernel page cache. \
+\n\nContrary to common online tweakguides advice, there should not be a custom vm.swappiness defined while also running Preload. \
+\nYou can remove Preload using woogaloo App or by executing the following command from Terminal: \
+\n\n~$ <b>sudo apt-get remove preload -y</b> \n" 2>/dev/null
+      else
+          ARRAYB+=('SYSSWAP')  
+      fi
+  fi 
+
+  ### remove zram from array
+  if grep -q 'ZRAM' <<< "${selection[${i}]}"; then
+    
+      ### if zswap is installed display info
+      if [[ "$VARZSWAP" == "Y" || -n "$(grep 'zswap.enabled=1' /etc/default/grub)" ]]; then
+          REMOVE="ZRAM"
+          ARRAYB=( "${ARRAYB[@]/$REMOVE}" )
+          yad --warning --image="gtk-dialog-warning" --width=460 --height=280 --title=" zSWAP detected" --button="OK" \
+              --text="\nZSWAP is currently enabled in your system.\nZSWAP and ZRAM must not be enabled at the same time. \
+\n\nPlease disable ZSWAP before enabling ZRAM." 2>/dev/null
+      else
+          ARRAYB+=('ZRAM')
+      fi
+  fi
+
+  ### remove zswap from array
+  if grep -q 'ZSWAP' <<< "${selection[${i}]}"; then
+    ### check for pending restart
+    if [[ "$VARZSWAP" == "Y" && -z "$(grep 'zswap.enabled=1' /etc/default/grub)" ]] || \
+       [[ "$VARZSWAP" == "N" && -n "$(grep 'zswap.enabled=1' /etc/default/grub)" ]]; then
+        yad --button="OK" --width=480 --height=120 --title=" Pending Restart" \
+            --text="\nThe computer must be restarted for changes to take effect.\n" 2>/dev/null
+    fi
+    ### if zram is installed display info
+    if [[ "$VARZRAM" == "ii" ]]; then
+        REMOVE="ZSWAP"
+        ARRAYB=( "${ARRAYB[@]/$REMOVE}" )
+        yad --warning --image="gtk-dialog-warning" --width=360 --height=120 --title="zRAM detected" --button="OK" \
+            --text="\nzRAM is currently enabled in your system. zRAM and zSWAP must not be enabled at the same time.\n\n\
+Please disable zRAM before enabling zSWAP." 2>/dev/null
+    else
+        ARRAYB+=('ZSWAP')
+    fi
+  fi
+done
+}
+
+
+RUN() {
+###  Check ARRAYA is empty. If empty, skip the execution
+if [[ "${#ARRAYA[@]}" != "0" ]]; then
+  printf '%s \n' "${ARRAYA[@]}"|
+  while read line; do
+    "$line" 2>/dev/null    ### Execute functions one at a time
+    if [[ "$?" = "1" ]]; then
+      yad "error" --image="gtk-dialog-error" --width=260 --title="Woogaloo" --button="OK" \
+           --text="An error occurred while executing:\n\n ${line}" 2>/dev/null
+      exit 1
+    fi
+    done | yad --width=360 --height=120 --text-align="center" --borders=10 \
+               --no-buttons --undecorated --fixed --center --skip-taskbar \
+               --progress --pulsate --auto-close --auto-kill --text="\n<span font='13'>woogaloo</span>"        
+fi
+
+###  Check whether ARRAYB is empty and skip execution if so (skidoo  gksu <- pkexec)
+if [[ "${#ARRAYB[@]}" != "0" ]]; then
+  case $? in
+    0) if [[ -n $(which woogaloo-admin) ]]; then
+          gksu woogaloo-admin "${ARRAYB[@]}"
+       else
+          chmod +x ./woogaloo-admin 2>&1 /dev/null
+          gksu ./woogaloo-admin "${ARRAYB[@]}"    ### accommodate testing scenario
+       fi
+  ;;
+    1) return 
+  ;;
+  esac
+fi
+}
+
+
+
+###  perform checks
+CHECK() {
+VARZSWAP="$(< /sys/module/zswap/parameters/enabled)"                    ### zswap variable
+VARZRAM="$(dpkg -l | grep -E '^ii' | grep zram-config | cut -d' ' -f1)" ### zram variable
+#FILEPKEXEC="/home/${_SOFTUSR}/.local/share/woogaloo/ACTPKEXEC"      ### pkexec.pkla file
+
+### Check for bypass pkexec password prompt   (skidoo   use gksu instead)
+#if [[ ! -f "/usr/share/woogaloo/set/ACTPKEXEC" && ! -f "$FILEPKEXEC" ]]; then
+#     _bypasspswadmpkexec=(FALSE "BYPASSPSWADMPKEXEC" "pkexec Password Prompt" "Management" "System" "Bypass pkexec password prompt for admin accounts")
+#else _bypasspswadmpkexec=(FALSE "BYPASSPSWADMPKEXEC" "pkexec Password Prompt" "Management" "System" "<span foreground='green'>Bypass pkexec prompt for admins - (select to remove)</span>")
+#fi
+
+###  Check the google-chrome browser cache exists
+if [[ -d "${HOME}/.cache/google-chrome/" ]]; then
+     GCCACHESIZE=$(du -sh "${HOME}/.cache/google-chrome/" | awk '{print $1"B"}')
+     chromecache=(FALSE "CHROMECACHE" "Chrome Cache" "Cleanup" "User" "You can remove $GCCACHESIZE from your Chrome browser cache")
+else chromecache=()
+fi
+
+###  Check google-chrome browser profile exists
+if [[ -d "${HOME}/.config/google-chrome" ]]; then
+     _chromeprofile=(FALSE "CHROMEPROFILE" " -- Chrome Profile" "Cleanup" "User" "<span foreground='chocolate'>Remove Chrome browser profile</span>")
+else _chromeprofile=()
+fi
+
+###  Check for chromium browser cache
+if [[ -d "${HOME}/.cache/chromium/" && $(du -sb "${HOME}/.cache/chromium/" | cut -f1) -ge 1048576 ]]; then
+     CHRCACHESIZE=$(du -sh "${HOME}/.cache/chromium/" | awk '{print $1"B"}')
+     chromiumcache=(FALSE "CHROMIUMCACHE" "Chromium Cache" "Cleanup" "User" "You can remove $CHRCACHESIZE from your Chromium browser cache")
+else chromiumcache=()
+fi
+
+###  Check chromium browser profile exists
+if [[ -d "${HOME}/.config/chromium/" ]]; then
+     _chromiumprofile=(FALSE "CHROMIUMPROFILE" " -- Chromium Profile" "Cleanup" "User" "<span foreground='chocolate'>Remove Chromium browser profile</span>")
+else _chromiumprofile=()
+fi
+
+###  check for firefox browser cache
+if [[ -d "${HOME}/.cache/mozilla/firefox" && $(du -sb "${HOME}/.cache/mozilla/firefox" | cut -f1) -ge 1048576 ]]; then
+     FFCACHESIZE=$(du -sh "${HOME}/.cache/mozilla/firefox/" 2>&1 | awk '{print $1"B"}')
+     firefoxcache=(FALSE "FIREFOXCACHE" "Firefox Cache" "Cleanup" "User" "You can remove $FFCACHESIZE from your Firefox browser cache")
+else firefoxcache=()
+fi
+
+###  Check firefox browser profile exists
+if [[ -d "${HOME}/.mozilla/firefox/" ]]; then
+     _ffoxprofile=(FALSE "FFOXPROFILE" " -- Firefox Profile" "Cleanup" "User" "<span foreground='chocolate'>Remove Firefox browser profile</span>")
+else _ffoxprofile=()
+fi
+
+###  check for kernel cache pressure
+if [[ $(< /proc/sys/vm/vfs_cache_pressure) != "100" ]]; then
+     _syscachepr=(FALSE "SYSCACHEPR" "Kernel Cache Pressure" "Performance" "System" "<span foreground='green'>Custom kernel cache pressure applied - (select to modify)</span>")
+else _syscachepr=(FALSE "SYSCACHEPR" "Kernel Cache Pressure" "Performance" "System" "Controls how the kernel reclaims memory used for caching")
+fi
+
+###  check for kernel swappiness
+if [[ $(< /proc/sys/vm/swappiness) = "60" ]]; then
+    if which preload > /dev/null; then
+       _sysswap=(FALSE "SYSSWAP" "Kernel Swappiness ¡¡" "" "" "Kernel setting that controls how often the swap file is used")
+    else _sysswap=(FALSE "SYSSWAP" "Kernel Swappiness" "Performance" "System" "Kernel setting that controls how often the swap file is used")
+    fi
+else 
+    _sysswap=(FALSE "SYSSWAP" "Kernel Swappiness" "Performance" "System" "<span foreground='green'>Custom kernel swappiness applied - (select to modify)</span>")
+fi
+
+###  Check  midori browser cache exists
+if [[ -d  "${HOME}/.cache/midori/" ]]; then
+     MDCACHESIZE=$(du -sh "${HOME}/.cache/midori/" | awk '{print $1"B"}')
+     _midoricache=(FALSE "MIDORICACHE" "Midori Cache" "Cleanup" "User" "You can remove $MDCACHESIZE from your Midori browser cache")
+else _midoricache=()
+fi
+
+###  Check midori browser profile exists
+if [[ -d "${HOME}/.config/midori/" ]]; then
+     _midoriprofile=(FALSE "MIDORIPROFILE" " -- Midori Profile" "Cleanup" "User" "<span foreground='chocolate'>Remove Midori browser profile</span>")
+else _midoriprofile=()
+fi
+
+###  Check  opera browser cache exists
+if [[ -d "${HOME}/.cache/opera/Cache/" ]]; then
+     OPCACHESIZE=$(du -sh "${HOME}/.cache/opera/Cache/" | awk '{print $1"B"}')
+     _operacache=(FALSE "OPERACACHE" "Opera Cache" "Cleanup" "User" "You can remove $OPCACHESIZE from your Opera browser cache")
+else _operacache=()
+fi
+
+###  Check opera browser profile exists
+if [[ -d "${HOME}/.config/opera/" ]]; then
+     _operaprofile=(FALSE "OPERAPROFILE" " -- Opera Profile" "Cleanup" "User" "<span foreground='chocolate'>Remove Opera browser profile</span>")
+else _operaprofile=()
+fi
+
+###  Check  Pale Moon browser cache exists
+if [[ -d "${HOME}/.cache/moonchild productions/pale moon/" ]]; then
+     PMCACHESIZE=$(du -sh "${HOME}/.cache/moonchild productions/pale moon/" | awk '{print $1"B"}')
+     _palemooncache=(FALSE "PALEMOONCACHE" "Pale Moon Cache" "Cleanup" "User" "You can remove $PMCACHESIZE from your Pale Moon browser cache")
+else _palemooncache=()
+fi
+
+###  Check Pale Moon browser profile exists
+if [[ -d "${HOME}/.moonchild productions/" ]]; then
+     _palemoonprofile=(FALSE "PALEMOONPROFILE" " -- Pale Moon Profile" "Cleanup" "User" "<span foreground='chocolate'>Remove Pale Moon browser profile</span>")
+else _palemoonprofile=()
+fi
+
+###  Check logs archives
+if [[ "$(find /var/log -type f \( -iname \*.gz -o -iname \*.0 -o -iname \*.1 \) 2>/dev/null -maxdepth 100 -size +1k)" ]]; then
+     LOGARCHIVESIZE=$(find /var/log -type f \( -iname \*.gz -o -iname \*.0 -o -iname \*.1 \) 2>/dev/null -exec du -csh '{}' + | tail -1 | awk '{print $1"B"}')
+     _logarchives=(FALSE "LOGARCHIVES" "Log Archives" "Cleanup" "System" "You can remove $LOGARCHIVESIZE worth of archived logs")
+else _logarchives=()
+fi
+
+###  Check any thumbnails exist
+if [[ -e ${HOME}/.cache/thumbnails ]]; then
+    if [[ $(du -sk "${HOME}/.cache/thumbnails/" | awk '{print $1}') > 10 ]]; then
+        THUMBCACHESIZE=$(du -sh "${HOME}"/.cache/thumbnails/ | awk '{print $1"B"}')
+        _thumbn=(FALSE "THUMBNAILS" "Thumbnail Cache" "Cleanup" "User" "You can remove $THUMBCACHESIZE from your thumbnail cache")
+    fi
+elif [[ -e ${HOME}/.thumbnails ]]; then
+    if [[ $(du -sk "${HOME}/.thumbnails/" | awk '{print $1}') > 10 ]]; then
+        THUMBCACHESIZE=$(du -sh "${HOME}"/.thumbnails/ | awk '{print $1"B"}')
+        _thumbn=(FALSE "THUMBNAILS" "Thumbnail Cache" "Cleanup" "User" "You can remove $THUMBCACHESIZE from your thumbnail cache")
+    fi
+else _thumbn=()
+fi
+
+
+###  Check package cache 
+if [[ "$(find /var/cache/apt/archives/ -maxdepth 1 -size +100k)" ]]; then
+     APTCACHESIZE=$(du -sh /var/cache/apt/archives/ 2>/dev/null | awk '{print $1"B"}')
+     _packagecache=(FALSE "PACKAGECACHE" "Packages Cache" "Cleanup" "System" "You can remove $APTCACHESIZE worth of files from the packages cache")
+else _packagecache=()
+fi
+
+###  Check preload is installed
+if [[ -z "$(dpkg -l | grep -E '^ii' | grep '\spreload\s')" ]]; then
+   if [[ -z "$(grep -F 'vm.swappiness' /etc/sysctl.conf)" ]];then
+     _preload=(FALSE "PRELOAD" "Preload Apps" "Performance" "System" "prefetch files of commonly used apps into RAM for faster loading")
+   else
+     _preload=(FALSE "PRELOAD" "Preload Apps  §" "" "" "prefetch files of commonly used apps into RAM for faster loading")
+   fi
+else _preload=(FALSE "PRELOAD" "Preload Apps" "Performance" "System" "<span foreground='green'>Preload is currently installed - (select to modify)</span>")
+fi
+
+###  Check residual configuration files
+if [[ -n "$(dpkg -l | grep ^rc)" ]]; then
+     RESCONFIGQTY=$(dpkg -l | grep '^rc' | awk '{print $2}'| wc -w)
+     _resconfig=(FALSE "RESIDCONFIG" "Residual Config Files" "Cleanup" "System" "There are $RESCONFIGQTY residual configuration files that can be removed")
+else _resconfig=()
+fi
+
+###  Check the seamonkey browser cache exists
+if [[ -d "${HOME}/.cache/mozilla/seamonkey/" ]]; then
+     SMCACHESIZE=$(du -sh "${HOME}/.cache/mozilla/seamonkey/" | awk '{print $1"B"}')
+     _seamonkeycache=(FALSE "SEAMONKEYCACHE" "SeaMonkey Cache" "Cleanup" "User" "You can remove $SMCACHESIZE from your SeaMonkey browser cache")
+else _seamonkeycache=()
+fi
+
+###  Check seamonkey browser profile exists
+if [[ -d "${HOME}/.mozilla/seamonkey/" ]]; then
+     _seamonkeyprofile=(FALSE "SEAMONKEYPROFILE" " -- SeaMonkey Profile" "Cleanup" "User" "<span foreground='chocolate'>Remove SeaMonkey browser profile</span>")
+else _seamonkeyprofile=()
+fi
+
+###  Check the Trash
+if [[ -e ${HOME}/.local/share/Trash/files/ ]]; then
+     TRASHCACHESIZE=$(du -sh "${HOME}/.local/share/Trash/" | awk '{print $1"B"}')
+     _trashbin=(FALSE "TRASHBIN" "Trash Bin" "Cleanup" "User" "You can remove $TRASHCACHESIZE from the Trash bin")
+else _trashbin=()
+fi
+
+###  Check vivaldi-stable cache
+if [[ -d "${HOME}/.cache/vivaldi/" ]]; then
+     VCSIZE=$(du -sh "${HOME}/.cache/vivaldi/" | awk '{print $1"B"}')
+     _vivaldicache=(FALSE "VIVALDICACHE" "Vivaldi Cache" "Cleanup" "User" "You can remove $VCSIZE from your Vivaldi browser cache")
+else _vivaldicache=()
+fi
+
+###  Check vivaldi browser profile exists
+if [[ -d "${HOME}/.config/vivaldi" ]]; then
+     _vivaldiprofile=(FALSE "VIVALDIPROFILE" " -- Vivaldi Profile" "Cleanup" "User" "<span foreground='chocolate'>Remove Vivaldi browser profile</span>")
+else _vivaldiprofile=()
+fi
+
+###  Check for zram
+if [[ -z "$VARZRAM" ]]; then
+  if [[ "$VARZSWAP" == "Y" ]] || [[ -n "$(grep 'zswap.enabled=1' /etc/default/grub)" ]]; then
+     _zram=(FALSE "ZRAM" "zRAM ¡¡" "" "" "Compressed RAM based block device for faster I/O")
+   else
+     _zram=(FALSE "ZRAM" "zRAM" "Performance" "System" "Compressed RAM based block device for faster I/O")
+   fi
+else _zram=(FALSE "ZRAM" "zRAM" "Performance" "System" "<span foreground='green'>zRAM is currently installed - (select to modify)</span>")
+fi
+
+###  Check for zswap
+###  check kernel for zswap
+if [[ $(cat /boot/config-$(uname -r) | grep -i zswap | cut -d= -f2) == "y" ]]; then
+  ### if zswap is NOT enabled
+  if [[ "$VARZSWAP" == "N" ]]; then
+    ### if zram is installed
+    if [[ -n "$VARZRAM" ]]; then
+       _zswap=(FALSE "ZSWAP" "zSWAP ¡¡" "" "" "Efficient use of RAM and disk based swap. Minimizes Disk I/O")
+    else
+        ### if zswap is not enabled but grub value exists
+        if [[ "$VARZSWAP" == "N" ]] && [[ -n "$(grep 'zswap.enabled=1' /etc/default/grub)" ]]; then 
+            _zswap=(FALSE "ZSWAP" "zSWAP <span foreground='red'>(Pending restart) ¡¡</span>" "" "" "Efficient use of RAM and disk based swap. Minimizes Disk I/O")
+        else
+            ### zswap default
+            _zswap=(FALSE "ZSWAP" "zSWAP" "Performance" "System" "Efficient use of RAM and disk based swap. Minimizes Disk I/O")
+        fi
+    fi
+  else 
+      if [[ "$VARZSWAP" == "Y" ]] && [[ -z "$(grep 'zswap.enabled=1' /etc/default/grub)" ]]; then
+          ### pending reboot for removal
+          _zswap=(FALSE "ZSWAP" "zSWAP <span foreground='red'>(Pending restart) ¡¡</span>" "Performance" "System" "<span foreground='green'>zSWAP is currently enabled - (select to modify)</span>")
+      else
+          ### zswap installed
+          _zswap=(FALSE "ZSWAP" "zSWAP" "Performance" "System" "<span foreground='green'>zSWAP is currently enabled - (select to modify)</span>")
+     fi
+  fi
+fi
+
+
+### Check for Change Hostname 
+#if [[ "$LMDENV" =~ "Xfce" ]] || [[ "$LMDENV" =~ "MATE" ]]; then
+     _chnamehost=(FALSE "CHNAMEHOST" "Hostname" "Change Hostname" "System" "Change the computer hostname <!--(no restart required)-->")
+#else _chnamehost=()
+#fi
+
+
+###  Check waterfox browser cache exists
+if [[ -d "${HOME}/.cache/waterfox/" ]]; then
+     WFCACHESIZE=$(du -sh "${HOME}/.cache/waterfox/"| awk '{print $1"B"}')
+     _waterfoxcache=(FALSE "WATERFOXCACHE" "Waterfox Cache" "Cleanup" "User" "You can remove $WFCACHESIZE from your Waterfox browser cache")
+else _waterfoxcache=()
+fi
+
+###  Check waterfox browser profile exists
+if [[ -d "${HOME}/.waterfox" ]]; then
+     _waterfoxprofile=(FALSE "WATERFOXPROFILE" " -- Waterfox Profile" "Cleanup" "User" "<span foreground='chocolate'>Remove Waterfox browser profile</span>")
+else _waterfoxprofile=()
+fi
+
+
+###  Check for samba service   NOT OFFERED UNLESS THE SERVICE IS CURRENTLY RUNNING
+if [[ "$SAMBASTUFF" = "yes" ]]; then
+  if [[ -n $(pgrep -f 'smbd') ]]; then
+     _sambasrv=(FALSE "SAMBASVR" " -- Service: samba" "Performance" "System" "If not using this PC as a file server, this service can safely disabled")
+  else _sambasrv=(FALSE "SAMBASVR" " -- Service: samba" "Performance" "System" "<span foreground='green'>Samba is disabled (select to enable samba)</span>")
+  fi
+fi
+} 
+
+
+_CLEANUP() {
+  [[ -e "$TMPUSRFL" ]] && rm -f "$TMPUSRFL"
+  [[ -e /tmp/.woogaloods ]] && rm -f /tmp/.woogaloods   ### session flagfile (reserved for future use)
+}
+
+
+
+
+
+###  Main loop
+while (true); do
+
+_APPNAME="woogaloo"
+_SOFTUSR=$(whoami)
+TMPUSRFL="/tmp/.woogaloousr"
+
+CHECK ### perform the startup checks
+
+
+echo "$DESKTOP_SESSION" > /tmp/.woogaloods ; chmod 600 /tmp/.woogaloods
+if [[ ! -f "$TMPUSRFL" ]]; then
+  echo "$_SOFTUSR" > "$TMPUSRFL"
+  chmod 600 "$TMPUSRFL"
+else :
+fi
+
+
+DISTRO=" MX woogaloo (working title, choose another) prototype"     ##"$(cut -d\\ -f1 < /etc/issue)"  ###   skidoo    hmm?
+#ICON="/usr/share/pixmaps/woogaloo.png"
+#ICON=2"/usr/share/woogaloo/whitelist90.png" ### dialog window icon
+ICON="/home/demo/gitz/t/woogaloo.png"
+ICON2="/home/demo/gitz/t/usr_share_woogaloo/whitelist90.png"
+
+### main dialog
+###
+###    skidoo  removed from below    "${_bypasspswadmpkexec[@]}" 
+selection=$(yad --list --checklist --width=820 --height=580 --window-icon="$ICON" --image="$ICON2" --separator=" " \
+                --search-column=3 --image-on-top --button="gtk-quit:1" --button=" Begin"\!gtk-apply:0 --title=" $_APPNAME" \
+                --column="Select" --column="SELECTION" --column="Name" --column="Task" \
+                --column="Category" --column="Description" --hide-column=2 --print-column=2 \
+                --text="<span font='9'>${DISTRO}\n</span> \
+<span font='9'><b>status: betatesting ~~ not for use on production systems</b>\n\n \
+Select the task(s) you wish to perform, then click the Begin button.\n You can sort the list by clicking on the column headers. \
+You can select multiple tasks for sequential execution. <!--(Administrative privileges are required for some tasks.)--> </span>" \
+"${_zram[@]}" \
+"${_zswap[@]}" \
+"${chromecache[@]}" \
+"${chromiumcache[@]}" \
+"${_fixdpcin[@]}" \
+"${_fixdpxfce[@]}" \
+"${firefoxcache[@]}" \
+"${_syscachepr[@]}" \
+"${_sysswap[@]}" \
+"${_logarchives[@]}" \
+"${_midoricache[@]}" \
+"${_operacache[@]}" \
+"${_palemooncache[@]}" \
+"${_packagecache[@]}" \
+"${_preload[@]}" \
+"${_resconfig[@]}" \
+"${_seamonkeycache[@]}" \
+"${_thumbn[@]}" \
+"${_trashbin[@]}" \
+"${_chnamehost[@]}" \
+"${_vivaldicache[@]}" \
+"${_waterfoxcache[@]}" \
+"${_chromeprofile[@]}" \
+"${_chromiumprofile[@]}" \
+"${_ffoxprofile[@]}" \
+"${_midoriprofile[@]}" \
+"${_operaprofile[@]}" \
+"${_palemoonprofile[@]}" \
+"${_seamonkeyprofile[@]}" \
+"${_vivaldiprofile[@]}" \
+"${_waterfoxprofile[@]}" \
+"${_sambasrv[@]}")
+
+if [[ "$?" = "1" || "$?" = "252" ]]; then _CLEANUP; exit 0 ; fi  ### trap exit if Quit or (redX) is clicked
+
+grep -q '[a-zA-Z0-9]' <<< "$selection"
+if [[ "$?" != "0" ]]; then
+    yad --info --button="OK" --image="gtk-dialog-info" --width=460 --height=120 --title=" $_APPNAME" \
+        --text="\n<b>No tasks were selected for execution</b> \n\nPlease try again, selecting at least one task." 2>/dev/null
+    continue
+fi
+
+ARRAYS   ### group the selected items into arrays A and B
+RUN
+done
+exit 0
