@@ -40,24 +40,16 @@ if [[ $(pidof synaptic | wc -w) != "0" ]] || [[ $(pidof aptitude | wc -w) != "0"
        --title="dpkg/apt mechanism is already in use" --width=660 --height=320 \
        --text="\nA Package Manager process (synaptic, aptitude, or apt) is currently running. \
 Those processes will be terminated before continuing.\n\nWould you like to proceed?" 2>/dev/null
-
-  if [[ "$?" != "0" ]]; then ${opt_procedure[@]}
-  else
-    echo ":☞  Terminating processes..."
-    for zig in "synaptic apt apt-get gdebi aptitude"; do
-        killall -9 $zig
-    done
-    #killall -9 synaptic 2>/dev/null ; killall -9 apt 2>/dev/null
-    #killall -9 apt-get ; killall -9 gdebi ; killall -9 aptitude
-  fi
-  echo "dammit anyhow"
+   if [[ "$?" != "0" ]]; then ${opt_procedure[@]}
+   else
+       echo ":☞  Terminating processes..."
+        for zig in "synaptic apt apt-get gdebi aptitude"; do
+            killall -9 $zig
+        done
+        #killall -9 synaptic 2>/dev/null ; killall -9 apt 2>/dev/null
+        #killall -9 apt-get ; killall -9 gdebi ; killall -9 aptitude
+    fi
 fi
-}
-
-
-woogalooLog() {
-_LOG="/tmp/woogaloo.log"
-  touch "$_LOG"; chown "$SOFTUSR":"$SOFTUSR" "$_LOG"; chmod 600 "$_LOG"
 }
 
 
@@ -110,7 +102,14 @@ ADMRUN="$@"
 #if [[ $(grep "BYPASSPSWADMPKEXEC" <<< "$ADMRUN") ]]; then ARRAYC+=('BYPASSPSWADMPKEXEC'); fi
 
 if [[ $(grep "FIXDBXFCE2" <<< "$ADMRUN") ]]; then ARRAYC+=('FIXDBXFCE2'); fi
-if [[ $(grep "LOGARCHIVES" <<< "$ADMRUN") ]]; then ARRAYC+=('LOGARCHIVES'); fi
+if [[ $(grep "LOG_AUTH_ARCHIVES" <<< "$ADMRUN") ]]; then ARRAYC+=('LOG_AUTH_ARCHIVES'); fi
+if [[ $(grep "LOG_DEBUG_ARCHIVES" <<< "$ADMRUN") ]]; then ARRAYC+=('LOG_DEBUG_ARCHIVES'); fi
+if [[ $(grep "LOG_DMESG_ARCHIVES" <<< "$ADMRUN") ]]; then ARRAYC+=('LOG_DMESG_ARCHIVES'); fi
+#if [[ $(grep "LOG_DPKG_ARCHIVES" <<< "$ADMRUN") ]]; then ARRAYC+=('LOG_DPKG_ARCHIVES'); fi
+if [[ $(grep "LOG_KERN_ARCHIVES" <<< "$ADMRUN") ]]; then ARRAYC+=('LOG_KERN_ARCHIVES'); fi
+if [[ $(grep "LOG_MESSAGES_ARCHIVES" <<< "$ADMRUN") ]]; then ARRAYC+=('LOG_MESSAGES_ARCHIVES'); fi
+if [[ $(grep "LOG_SYSLOG_ARCHIVES" <<< "$ADMRUN") ]]; then ARRAYC+=('LOG_SYSLOG_ARCHIVES'); fi
+if [[ $(grep "LOG_XORG_ARCHIVES" <<< "$ADMRUN") ]]; then ARRAYC+=('LOG_SORG_ARCHIVES'); fi
 if [[ $(grep "PACKAGECACHE" <<< "$ADMRUN") ]]; then ARRAYC+=('PACKAGECACHE'); fi
 if [[ $(grep "PRELOAD" <<< "$ADMRUN") ]]; then ARRAYC+=('PRELOAD'); fi
 if [[ $(grep "RESIDCONFIG" <<< "$ADMRUN") ]]; then ARRAYC+=('RESIDCONFIG'); fi
@@ -198,17 +197,103 @@ FIXDBXFCE2() {
 }
 
 
-###  delete log archives
-LOGARCHIVES() {
-    echo ":☞  Deleting archived logs..."
-    find /var/log \( -name '*.gz' -o -name '*.0' -o -name '*.1' \) -exec rm -rf {} \;
+###  delete log archives  
+###   RESIST THE TEMPTATION TO PASS NAME/PATTERN, AS AN ARG, TO A SINGLE FUNCTION
+###   UNLESS WE TAKE CARE TO PRESERVE ABILITY TO APPLY SPECIAL HANDLING 
+###   TO EACH TYPE (ONLY gz's, custom date n size threshholds...)
+LOG_AUTH_ARCHIVES() {
+    echo ":☞  Deleting archived AUTH logs..."
+    find /var/log \( -name 'auth*.gz' -o -name 'auth*.0' -o -name 'auth*.1' \) -exec rm -rf {} \;
     if [[ "${PIPESTATUS[0]}" != "0" ]]; then echo ": ⁂  Error..."
         yad "error" --image="gtk-dialog-error" --width=460 --height=120 \
             --title=" Error" --button="OK" \
-            --text="\nan error occurred while deleting archived logs" 2>/dev/null; return
+            --text="\nan error occurred while deleting archived AUTH logs" 2>/dev/null; return
+    fi
+    echo ": ✔  Archived AUTH logfiles cleared"
+}
+
+LOG_DEBUG_ARCHIVES() {
+    echo ":☞  Deleting archived DEBUG logs..."
+    find /var/log \( -name 'debug*.gz' -o -name 'debug*.0' -o -name 'debug*.1' \) -exec rm -rf {} \;
+    if [[ "${PIPESTATUS[0]}" != "0" ]]; then echo ": ⁂  Error..."
+        yad "error" --image="gtk-dialog-error" --width=460 --height=120 \
+            --title=" Error" --button="OK" \
+            --text="\nan error occurred while deleting archived DEBUG logs" 2>/dev/null; return
+    fi
+    echo ": ✔  Archived DEBUG logfiles cleared"
+}
+
+LOG_DMESG_ARCHIVES() {
+    echo ":☞  Deleting archived DMESG logs..."
+    find /var/log \( -name 'dmesg*.gz' -o -name 'dmesg*.0' -o -name 'dmesg*.1' \) -exec rm -rf {} \;
+    if [[ "${PIPESTATUS[0]}" != "0" ]]; then echo ": ⁂  Error..."
+        yad "error" --image="gtk-dialog-error" --width=460 --height=120 \
+            --title=" Error" --button="OK" \
+            --text="\nan error occurred while deleting archived DMESG logs" 2>/dev/null; return
+    fi
+    echo ": ✔  Archived DMESG logfiles cleared"
+}
+
+#LOG_DPKG_ARCHIVES() {
+#    echo ":☞  Deleting archived DPKG logs..."
+#    find /var/log \( -name 'dpkg*.gz' -o -name 'dpkg*.0' -o -name 'dpkg*.1' \) -exec rm -rf {} \;
+#    if [[ "${PIPESTATUS[0]}" != "0" ]]; then echo ": ⁂  Error..."
+#        yad "error" --image="gtk-dialog-error" --width=460 --height=120 \
+#            --title=" Error" --button="OK" \
+#            --text="\nan error occurred while deleting archived DPKG logs" 2>/dev/null; return
+#    fi
+#    echo ": ✔  Archived DPKG logfiles cleared"
+#}
+
+LOG_KERN_ARCHIVES() {
+    echo ":☞  Deleting archived KERN logs..."
+    find /var/log \( -name 'kern*.gz' -o -name 'kern*.0' -o -name 'kern*.1' \) -exec rm -rf {} \;
+    if [[ "${PIPESTATUS[0]}" != "0" ]]; then echo ": ⁂  Error..."
+        yad "error" --image="gtk-dialog-error" --width=460 --height=120 \
+            --title=" Error" --button="OK" \
+            --text="\nan error occurred while deleting archived KERN logs" 2>/dev/null; return
     fi
     echo ": ✔  Archived logfiles cleared"
 }
+
+LOG_MESSAGES_ARCHIVES() {
+    echo ":☞  Deleting archived MESSAGES logs..."
+    find /var/log \( -name 'messages*.gz' -o -name 'messages*.0' -o -name 'messages*.1' \) -exec rm -rf {} \;
+    if [[ "${PIPESTATUS[0]}" != "0" ]]; then echo ": ⁂  Error..."
+        yad "error" --image="gtk-dialog-error" --width=460 --height=120 \
+            --title=" Error" --button="OK" \
+            --text="\nan error occurred while deleting archived MESSAGES logs" 2>/dev/null; return
+    fi
+    echo ": ✔  Archived MESSAGES logfiles cleared"
+}
+
+LOG_SYSLOG_ARCHIVES() {
+    echo ":☞  Deleting archived SYSLOG logs..."
+    find /var/log \( -name 'syslog*.gz' -o -name 'syslog*.0' -o -name 'syslog*.1' \) -exec rm -rf {} \;
+    if [[ "${PIPESTATUS[0]}" != "0" ]]; then echo ": ⁂  Error..."
+        yad "error" --image="gtk-dialog-error" --width=460 --height=120 \
+            --title=" Error" --button="OK" \
+            --text="\nan error occurred while deleting archived SYSLOG logs" 2>/dev/null; return
+    fi
+    echo ": ✔  Archived SYSLOG logfiles cleared"
+}
+
+LOG_XORG_ARCHIVES() {
+    echo ":☞  Deleting archived XORG logs..."
+    find /var/log \( -name 'Xorg*.gz' -o -name 'Xorg*.0' -o -name 'Xorg*.1' \) -exec rm -rf {} \;
+    if [[ "${PIPESTATUS[0]}" != "0" ]]; then echo ": ⁂  Error..."
+        yad "error" --image="gtk-dialog-error" --width=460 --height=120 \
+            --title=" Error" --button="OK" \
+            --text="\nan error occurred while deleting archived XORG logs" 2>/dev/null; return
+    fi
+    echo ": ✔  Archived XORG logfiles cleared"
+}
+
+
+
+
+
+
 
 
 ###  task: clean up package cache
@@ -409,7 +494,7 @@ The Linux kernel provides a ratio of preference to which the system favors anony
 A high value improves file-system performance, while aggressively swapping less active processes
 out of physical memory. A low value avoids swapping processes out of memory, which usually
 decreases latency, at the cost of I/O performance.
-\nUbuntu system\'s default value is 60. Systems with more than adequate RAM for any expected 
+\nSystems with more than adequate RAM for any expected 
 task may want to drastically lower the setting.
 \n<span font='Bold 11'>Recommended Swappiness Values</span>\n
 - Swappiness = 10  Recommended when sufficient RAM exists in a system
@@ -666,9 +751,6 @@ SAMBASVR() {
 CHNAMEHOST() {
 _HOSTNAME=$(hostname)
 echo ":☞  Changing hostname... ${_HOSTNAME}"
-
-### Change Hostname Xfce MATE LXce
-if [[ "$DENV" =~ "Xfce" ]] || [[ "$DENV" =~ "MATE" ]]; then
 while (true); do            ###    NO CANCEL BUTTON HERE?
     _NEW_HOSTNAME=$(yad --entry --width="350" --height="200" --window-icon="$_ICON" \
                 --button="Change" --title=" Change Hostname" \
@@ -679,7 +761,7 @@ Note: The hostname must not be empty, or start with hashtags, or\ncontain whites
         return
     fi
 
-    ### If hostname is only blank spaces or starts with a hashtag, warn and loop
+    ### If requested hostname is only blank spaces or starts with a poundsign, warn and loop
     egrep "^[[:space:]]*$|^#|[[:space:]]|*_.*" <<< "$_NEW_HOSTNAME" >/dev/null
     if [[ "$?" = "0" ]]; then
         yad --warning --image="gtk-dialog-warning" --button="OK" \
@@ -687,8 +769,7 @@ Note: The hostname must not be empty, or start with hashtags, or\ncontain whites
             --text="The new hostname must not be empty, nor start with a hashtag {poundsign} chracter, nor contain white spaces or underscores.\n\n\
 The hostname could be changed." 2>/dev/null
         continue
-
-### If old hostname and new hostname are the same, warn and loop
+    ### If old hostname and new hostname are the same, warn and loop
     elif [[ "$_NEW_HOSTNAME" = "$_HOSTNAME" ]]; then
         yad --info --button="OK" --image="gtk-dialog-info" --width="460" --height="100" \
             --title=" Hostname not changed" \
@@ -700,18 +781,22 @@ The hostname could be changed." 2>/dev/null
         sed -i 's/127.0.1.1.*/127.0.1.1\t'"$_NEW_HOSTNAME"'/g' /etc/hosts
         echo "$_NEW_HOSTNAME" > /etc/hostname
         service networking restart 2>&1/dev/null
+        sleep 3
         cd "/home/${SOFTUSR}"
         su $SOFTUSR -c "xauth add $(xauth list | grep "$_HOSTNAME" | sed 's/'"$_HOSTNAME"'\//'"$_NEW_HOSTNAME"'\//g' | awk 'NR==1 {print}')"
         ### update netbios name = hostname in Samba smb.conf
         _SMBCONF="/etc/samba/smb.conf"
-        sed -i "s/netbios name =.*/netbios name = "$_NEW_HOSTNAME"/" "$_SMBCONF"
+        sed -i "s/netbios name =.*/netbios name = "$_NEW_HOSTNAME"/" "$_SMBCONF" 2>&1/dev/null
         echo ":☞  Updating services. Please wait..."
         ###     CANNOT PRESUME THESE ARE AVAILABLE, AND ARE CURRENTLY RUNNING
-        service smbd restart 2>&1/dev/null
-        service nmbd restart 2>&1/dev/null
-        service network-manager restart 2>&1/dev/null; sleep 3 ; dhclient 2>&1/dev/null
+        if [[ $(pgrep smbd) != "" ]]; then   service smbd restart 2>&1/dev/null
+        if [[ $(pgrep nmbd) != "" ]]; then   service nmbd restart 2>&1/dev/null
+        if [[ $(pgrep network-manager) != "" ]]; then
+            service network-manager restart 2>&1/dev/null;
+            sleep 3
+        fi
+        if [[ $(pgrep dhclient) != "" ]]; then   dhclient 2>&1/dev/null ### "RTNETLINK answers: File exists"
         chown "$SOFTUSR":"$SOFTUSR" "/home/${SOFTUSR}/.Xauthority"
-
         if [[ "${PIPESTATUS[0]}" != "0" ]]; then
             yad "error" --image="gtk-dialog-error" --width="480" --button="Close" \
                --title=" Error" --text="\nan error occurred while changing the hostname" 2>/dev/null; return
@@ -722,12 +807,7 @@ The hostname could be changed." 2>/dev/null
         fi
     fi
 done
-fi
 }
-
-
-
-
 
 
 

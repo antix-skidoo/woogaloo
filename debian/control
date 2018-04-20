@@ -7,7 +7,7 @@ Build-Depends: debhelper (>= 7), pkg-config
 Standards-Version: 3.9.4
 
 Package: woogaloo
-Architecture: any
+Architecture: all
 Depends: yad
 Description: provides a GUI toward easing system administration and
  assorted tweaking tasks.

@@ -1,7 +1,7 @@
 Woogaloo -- a bash+yad application which provides a GUI toward easing
 assorted system tweaking, and administrative, tasks.
 
-<!-- derived from "UnlockMe" by Ralphy Rhdez https://github.com/ralphys -->
+derived from "UnlockMe" by Ralphy Rhdez https://github.com/ralphys <br>
 License: GPLv2, or later
 
 

@@ -1,3 +1,16 @@
+woogaloo (0.1.1)  unstable; urgency=low
+
+  * added a Help button, opens htmldoc in mx-viewer
+  * README.md: added credits [derived from "UnlockMe" by Ralphy Rhdez] 
+  * README.md: added license statement [License: GPLv2, or later]
+  * split "cleanup archived logfiles" task into separate, granular tasks
+  * suppressed (for now, at least) task offering to rm dpkg* logfiles
+  * removed some of the unused packaged imagefiles
+  * "Empty Trash" task: also rm ~/.local/share/Trash/info/*
+  * activated "change hostname" task for betatesting
+
+ -- skidoo <email@redact.ed>  Fri, 20 Apr 2018 22:22:22 -0400
+
 woogaloo (0.1.0)  unstable; urgency=low
 
   * ☞ Initial release ( change name of application  woogaloo <-- UnlockMe )

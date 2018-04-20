@@ -167,8 +167,12 @@ THUMBNAILS() {
 
 ###  empty trash bin
 TRASHBIN() {
-if [[ -e ${HOME}/.local/share/Trash/files/ ]]; then
+if [[ -e ${HOME}/.local/share/Trash/files/ ]]; then  ### redundant: already tested existence b4 adding to stask array
     echo ":☞  Emptying the Trash bin..."
+    if [[ -e ${HOME}/.local/share/Trash/info/ ]]; then
+        rm -rf ${HOME}/.local/share/Trash/info/*
+        ###   ^--- IDK: can we presume the 'info' dir exists?
+    fi
     rm -rf ${HOME}/.local/share/Trash/files/*
     if [[ "${PIPESTATUS[0]}" != "0" ]]; then
       echo ": ⁂  Error..."
@@ -216,7 +220,9 @@ ARRAYADEF=(CHROMECACHE CHROMEPROFILE CHROMIUMCACHE CHROMIUMPROFILE FIREFOXCACHE 
            VIVALDIPROFILE WATERFOXCACHE WATERFOXPROFILE ZRAM ZSWAP NULL)
 
 ###  array B definitions   (skidoo    removed  BYPASSPSWADMPKEXEC )
-ARRAYBDEF=(LOGARCHIVES PACKAGECACHE RESIDCONFIG SYSCACHEPR CHNAMEHOST SAMBASVR NULL)
+ARRAYBDEF=(LOG_AUTH_ARCHIVES LOG_DEBUG_ARCHIVES LOG_DMESG_ARCHIVES LOG_KERN_ARCHIVES \
+           LOG_MESSAGES_ARCHIVES LOG_SYSLOG_ARCHIVES LOG_XORG_ARCHIVES \
+           PACKAGECACHE RESIDCONFIG SYSCACHEPR CHNAMEHOST SAMBASVR NULL)
 
 SELECTRUN=${#selection[@]}
 
@@ -387,7 +393,7 @@ fi
 
 ###  Check firefox browser profile exists
 if [[ -d "${HOME}/.mozilla/firefox/" ]]; then
-     _ffoxprofile=(FALSE "FFOXPROFILE" " -- Firefox Profile" "Cleanup" "User" "<span foreground='chocolate'>Remove Firefox browser profile</span>")
+     _ffoxprofile=(FALSE "FFOXPROFILE" "<b>⚠</b> -- Firefox Profile" "Cleanup" "User" "<span foreground='chocolate'>Remove Firefox browser profile</span>")
 else _ffoxprofile=()
 fi
 
@@ -446,18 +452,79 @@ if [[ -d "${HOME}/.moonchild productions/" ]]; then
 else _palemoonprofile=()
 fi
 
-###  Check logs archives
-if [[ "$(find /var/log -type f \( -iname \*.gz -o -iname \*.0 -o -iname \*.1 \) 2>/dev/null -maxdepth 100 -size +1k)" ]]; then
-     LOGARCHIVESIZE=$(find /var/log -type f \( -iname \*.gz -o -iname \*.0 -o -iname \*.1 \) 2>/dev/null -exec du -csh '{}' + | tail -1 | awk '{print $1"B"}')
-     _logarchives=(FALSE "LOGARCHIVES" "Log Archives" "Cleanup" "System" "You can remove $LOGARCHIVESIZE worth of archived logs")
-else _logarchives=()
+
+
+###  Check archived AUTH logs
+if [[ "$(find /var/log -type f \( -iname auth\*.gz -o -iname auth\*.0 -o -iname auth\*.1 \) 2>/dev/null -maxdepth 100 -size +1k)" ]]; then
+     LOG_AUTH_ARCHIVESIZE=$(find /var/log -type f \( -iname auth\*.gz -o -iname auth\*.0 -o -iname auth\*.1 \) 2>/dev/null -exec du -csh '{}' + | tail -1 | awk '{print $1"B"}')
+     _log_auth_archives=(FALSE "LOG_AUTH_ARCHIVESIZE" \
+         "Archived Logfiles" "Cleanup" "System" "You can remove $LOG_AUTH_ARCHIVESIZE worth of archived AUTH logs")
+else _log_auth_archives=()
 fi
+
+###  Check archived DEBUG logs
+if [[ "$(find /var/log -type f \( -iname debug\*.gz -o -iname debug\*.0 -o -iname debug\*.1 \) 2>/dev/null -maxdepth 100 -size +1k)" ]]; then
+     LOG_DEBUG_ARCHIVESIZE=$(find /var/log -type f \( -iname debug\*.gz -o -iname debug\*.0 -o -iname debug\*.1 \) 2>/dev/null -exec du -csh '{}' + | tail -1 | awk '{print $1"B"}')
+     _log_debug_archives=(FALSE "LOG_DEBUG_ARCHIVESIZE" \
+          "Archived Logfiles" "Cleanup" "System" "You can remove $LOG_DEBUG_ARCHIVESIZE worth of archived logs")
+else _log_debug_archives=()
+fi
+
+###  Check archived DMESG logs
+if [[ "$(find /var/log -type f \( -iname dmesg\*.gz -o -iname dmesg\*.0 -o -iname dmesg\*.1 \) 2>/dev/null -maxdepth 100 -size +1k)" ]]; then
+     LOG_DMESG_ARCHIVESIZE=$(find /var/log -type f \( -iname dmesg\*.gz -o -iname dmesg\*.0 -o -iname dmesg\*.1 \) 2>/dev/null -exec du -csh '{}' + | tail -1 | awk '{print $1"B"}')
+     _log_dmesg_archives=(FALSE "LOG_DMESG_ARCHIVESIZE" \
+           "Archived Logfiles" "Cleanup" "System" "You can remove $LOG_DMESG_ARCHIVESIZE worth of archived DMESG logs")
+else _log_dmesg_archives=()
+fi
+
+# for now, will not offer this as a task
+###  Check archived DPKG logs
+#if [[ "$(find /var/log -type f \( -iname dpkg\*.gz -o -iname dpkg\*.0 -o -iname dpkg\*.1 \) 2>/dev/null -maxdepth 100 -size +1k)" ]]; then
+#     LOG_DPKG_ARCHIVESIZE=$(find /var/log -type f \( -iname dpkg\*.gz -o -iname dpkg\*.0 -o -iname dpkg\*.1 \) 2>/dev/null -exec du -csh '{}' + | tail -1 | awk '{print $1"B"}')
+#     _log_dpkg_archives=(FALSE "LOG_DPKG_ARCHIVESIZE" \
+#          "Archived Logfiles" "Cleanup" "System" "You can remove $LOG_DPKG_ARCHIVESIZE worth of archived DPKG logs")
+#else _log_dpkg_archives=()
+#fi
+
+###  Check archived KERN logs
+if [[ "$(find /var/log -type f \( -iname kern\*.gz -o -iname kern\*.0 -o -iname kern\*.1 \) 2>/dev/null -maxdepth 100 -size +1k)" ]]; then
+     LOG_KERN_ARCHIVESIZE=$(find /var/log -type f \( -iname kern\*.gz -o -iname kern\*.0 -o -iname kern\*.1 \) 2>/dev/null -exec du -csh '{}' + | tail -1 | awk '{print $1"B"}')
+     _log_kern_archives=(FALSE "LOG_KERN_ARCHIVESIZE" \
+           "Archived Logfiles" "Cleanup" "System" "You can remove $LOG_KERN_ARCHIVESIZE worth of archived KERN logs")
+else _log_kern_archives=()
+fi
+
+###  Check archived MESSAGES logs
+if [[ "$(find /var/log -type f \( -iname messages\*.gz -o -iname messages\*.0 -o -iname messages\*.1 \) 2>/dev/null -maxdepth 100 -size +1k)" ]]; then
+     LOG_MESSAGES_ARCHIVESIZE=$(find /var/log -type f \( -iname messages\*.gz -o -iname messages\*.0 -o -iname messages\*.1 \) 2>/dev/null -exec du -csh '{}' + | tail -1 | awk '{print $1"B"}')
+     _log_messages_archives=(FALSE "LOG_MESSAGES_ARCHIVESIZE" \
+           "Archived Logfiles" "Cleanup" "System" "You can remove $LOG_MESSAGES_ARCHIVESIZE worth of archived MESSAGES logs")
+else _log_messages_archives=()
+fi
+
+###  Check archived SYSLOG logs
+if [[ "$(find /var/log -type f \( -iname syslog\*.gz -o -iname syslog\*.0 -o -iname syslog\*.1 \) 2>/dev/null -maxdepth 100 -size +1k)" ]]; then
+     LOG_SYSLOG_ARCHIVESIZE=$(find /var/log -type f \( -iname syslog\*.gz -o -iname syslog\*.0 -o -iname syslog\*.1 \) 2>/dev/null -exec du -csh '{}' + | tail -1 | awk '{print $1"B"}')
+     _log_syslog_archives=(FALSE "LOG_SYSLOG_ARCHIVESIZE" 
+           "Archived Logfiles" "Cleanup" "System" "You can remove $LOG_SYSLOG_ARCHIVESIZE worth of archived SYSLOG logs")
+else _log_syslog_archives=()
+fi
+
+###  Check archived XORG logs
+if [[ "$(find /var/log -type f \( -iname Xorg\*.gz -o -iname Xorg\*.0 -o -iname Xorg\*.1 \) 2>/dev/null -maxdepth 100 -size +1k)" ]]; then
+     LOG_XORG_ARCHIVESIZE=$(find /var/log -type f \( -iname Xorg\*.gz -o -iname Xorg\*.0 -o -iname Xorg\*.1 \) 2>/dev/null -exec du -csh '{}' + | tail -1 | awk '{print $1"B"}')
+     _log_xorg_archives=(FALSE "LOG_XORG_ARCHIVESIZE" \
+           "Archived Logfiles" "Cleanup" "System" "You can remove $LOG_XORG_ARCHIVESIZE worth of archived XORG logs")
+else _log_xorg_archives=()
+fi
+
 
 ###  Check any thumbnails exist
 if [[ -e ${HOME}/.cache/thumbnails ]]; then
     if [[ $(du -sk "${HOME}/.cache/thumbnails/" | awk '{print $1}') > 10 ]]; then
         THUMBCACHESIZE=$(du -sh "${HOME}"/.cache/thumbnails/ | awk '{print $1"B"}')
-        _thumbn=(FALSE "THUMBNAILS" "Thumbnail Cache" "Cleanup" "User" "You can remove $THUMBCACHESIZE from your thumbnail cache")
+        _thumbn=(FALSE "THUMBNAILS" "Thumbnail Cache" "Cleanup" "User" "You can remove $THUMBCACHESIZE from your img thumbnails cache")
     fi
 elif [[ -e ${HOME}/.thumbnails ]]; then
     if [[ $(du -sk "${HOME}/.thumbnails/" | awk '{print $1}') > 10 ]]; then
@@ -478,9 +545,9 @@ fi
 ###  Check preload is installed
 if [[ -z "$(dpkg -l | grep -E '^ii' | grep '\spreload\s')" ]]; then
    if [[ -z "$(grep -F 'vm.swappiness' /etc/sysctl.conf)" ]];then
-     _preload=(FALSE "PRELOAD" "Preload Apps" "Performance" "System" "prefetch files of commonly used apps into RAM for faster loading")
+     _preload=(FALSE "PRELOAD" "Preload Apps" "Performance" "System" "prefetch files of often-used apps into RAM for faster loading")
    else
-     _preload=(FALSE "PRELOAD" "Preload Apps  §" "" "" "prefetch files of commonly used apps into RAM for faster loading")
+     _preload=(FALSE "PRELOAD" "Preload Apps  §" "" "" "prefetch files of often-used apps into RAM for faster loading")
    fi
 else _preload=(FALSE "PRELOAD" "Preload Apps" "Performance" "System" "<span foreground='green'>Preload is currently installed - (select to modify)</span>")
 fi
@@ -488,7 +555,7 @@ fi
 ###  Check residual configuration files
 if [[ -n "$(dpkg -l | grep ^rc)" ]]; then
      RESCONFIGQTY=$(dpkg -l | grep '^rc' | awk '{print $2}'| wc -w)
-     _resconfig=(FALSE "RESIDCONFIG" "Residual Config Files" "Cleanup" "System" "There are $RESCONFIGQTY residual configuration files that can be removed")
+     _resconfig=(FALSE "RESIDCONFIG" "Residual Config Files" "Cleanup" "System" "$RESCONFIGQTY residual package configuration file(s) can be removed")
 else _resconfig=()
 fi
 
@@ -506,7 +573,7 @@ else _seamonkeyprofile=()
 fi
 
 ###  Check the Trash
-if [[ -e ${HOME}/.local/share/Trash/files/ ]]; then
+if [[ -e "${HOME}/.local/share/Trash/files/" && $(du -sb "${HOME}/.local/share/Trash/" | cut -f1) -ge 360 ]]; then
      TRASHCACHESIZE=$(du -sh "${HOME}/.local/share/Trash/" | awk '{print $1"B"}')
      _trashbin=(FALSE "TRASHBIN" "Trash Bin" "Cleanup" "User" "You can remove $TRASHCACHESIZE from the Trash bin")
 else _trashbin=()
@@ -528,9 +595,9 @@ fi
 ###  Check for zram
 if [[ -z "$VARZRAM" ]]; then
   if [[ "$VARZSWAP" == "Y" ]] || [[ -n "$(grep 'zswap.enabled=1' /etc/default/grub)" ]]; then
-     _zram=(FALSE "ZRAM" "zRAM ¡¡" "" "" "Compressed RAM based block device for faster I/O")
+     _zram=(FALSE "ZRAM" "zRAM ¡¡" "" "" "Compressed RAM-based block device for faster I/O")
    else
-     _zram=(FALSE "ZRAM" "zRAM" "Performance" "System" "Compressed RAM based block device for faster I/O")
+     _zram=(FALSE "ZRAM" "zRAM" "Performance" "System" "Compressed RAM-based block device for faster I/O")
    fi
 else _zram=(FALSE "ZRAM" "zRAM" "Performance" "System" "<span foreground='green'>zRAM is currently installed - (select to modify)</span>")
 fi
@@ -588,8 +655,8 @@ fi
 ###  Check for samba service   NOT OFFERED UNLESS THE SERVICE IS CURRENTLY RUNNING
 if [[ "$SAMBASTUFF" = "yes" ]]; then
   if [[ -n $(pgrep -f 'smbd') ]]; then
-     _sambasrv=(FALSE "SAMBASVR" " -- Service: samba" "Performance" "System" "If not using this PC as a file server, this service can safely disabled")
-  else _sambasrv=(FALSE "SAMBASVR" " -- Service: samba" "Performance" "System" "<span foreground='green'>Samba is disabled (select to enable samba)</span>")
+     _sambasrv=(FALSE "SAMBASVR" " Service: samba" "Performance" "System" "If not using this PC as a file server, this service can safely disabled")
+  else _sambasrv=(FALSE "SAMBASVR" " Service: samba" "Performance" "System" "<span foreground='green'>Samba is disabled (select to enable samba)</span>")
   fi
 fi
 } 
@@ -631,10 +698,12 @@ ICON2="/home/demo/gitz/t/usr_share_woogaloo/whitelist90.png"
 ### main dialog
 ###
 ###    skidoo  removed from below    "${_bypasspswadmpkexec[@]}" 
-selection=$(yad --list --checklist --width=820 --height=580 --window-icon="$ICON" --image="$ICON2" --separator=" " \
-                --search-column=3 --image-on-top --button="gtk-quit:1" --button=" Begin"\!gtk-apply:0 --title=" $_APPNAME" \
+selection=$(yad --list --checklist --width=820 --height=580 --window-icon="$ICON" \
+                --image="$ICON2" --separator=" " --search-column=3 --image-on-top \
+                --button="Help"\!gtk-help:"mx-viewer /usr/share/woogaloo/woogaloo_help.html" \
+                --button="gtk-quit:1" --button=" Begin"\!gtk-apply:0 --title=" $_APPNAME" \
                 --column="Select" --column="SELECTION" --column="Name" --column="Task" \
-                --column="Category" --column="Description" --hide-column=2 --print-column=2 \
+                --column="Type" --column="Description" --hide-column=2 --print-column=2 \
                 --text="<span font='9'>${DISTRO}\n</span> \
 <span font='9'><b>status: betatesting ~~ not for use on production systems</b>\n\n \
 Select the task(s) you wish to perform, then click the Begin button.\n You can sort the list by clicking on the column headers. \
@@ -648,7 +717,13 @@ You can select multiple tasks for sequential execution. <!--(Administrative priv
 "${firefoxcache[@]}" \
 "${_syscachepr[@]}" \
 "${_sysswap[@]}" \
-"${_logarchives[@]}" \
+"${_log_auth_archives[@]}" \
+"${_log_debug_archives[@]}" \
+"${_log_dmesg_archives[@]}" \
+"${_log_kern_archives[@]}" \
+"${_log_messages_archives[@]}" \
+"${_log_syslog_archives[@]}" \
+"${_log_xorg_archives[@]}" \
 "${_midoricache[@]}" \
 "${_operacache[@]}" \
 "${_palemooncache[@]}" \
